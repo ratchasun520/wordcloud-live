@@ -380,7 +380,7 @@ function hashName(t) {
 let namesSig = null;
 // Thank-you finale: letters pop in, then the title glows and blinks; stars twinkle.
 function playFinale(count) {
-  letterIn($("#thanksTitle"), ["ขอบคุณ", "ผู้เข้าร่วมทุกคน"], 250);
+  letterIn($("#thanksTitle"), ["ขอบคุณ", "ผู้เข้าร่วมทุกท่าน"], 250);
   sparkles($("#endedStars"), 40);
   $("#endedCount").textContent = "0";
   setTimeout(() => countUp($("#endedCount"), count), 1500);
