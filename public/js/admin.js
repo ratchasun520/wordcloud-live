@@ -2,7 +2,7 @@ import { $, el, api, storage, clock, norm, TYPE_LABEL, fmtTime, secondsLeft } fr
 import { WordCloud } from "./cloud.js";
 import { AmbientMusic } from "./music.js";
 import { qrSvg } from "./qr.js";
-import { pop, retrigger, confetti } from "./fx.js";
+import { pop, retrigger, confetti, letterIn, sparkles, countUp } from "./fx.js";
 
 const TOKEN_KEY = "wc-admin-token";
 const POLL_MS = 2000;
@@ -363,12 +363,8 @@ function render() {
 
   if (phase === "ended" && !celebratedEnd) {
     celebratedEnd = true;
-    setTimeout(() => confetti({ count: 160, power: 1.2 }), 200);
+    playFinale(data.players.length);
   } else if (phase !== "ended") celebratedEnd = false;
-  if (phase === "ended") {
-    $("#endedInfo").textContent = `ผู้เข้าร่วม ${data.players.length} คน`;
-  }
-  if (!inQuestion && phase !== "lobby" && document.body.classList.contains("present")) setPresent(false);
 
   if (!$("#viewSettings").hidden) renderLaunch();
   updateMusic(phase);
@@ -382,6 +378,17 @@ function hashName(t) {
   return h;
 }
 let namesSig = null;
+// Thank-you finale: letters pop in, then the title glows and blinks; stars twinkle.
+function playFinale(count) {
+  letterIn($("#thanksTitle"), ["ขอบคุณ", "ผู้เข้าร่วมทุกคน"], 250);
+  sparkles($("#endedStars"), 40);
+  $("#endedCount").textContent = "0";
+  setTimeout(() => countUp($("#endedCount"), count), 1500);
+  setTimeout(() => confetti({ x: innerWidth * 0.2, y: innerHeight * 0.55, count: 90, power: 1.1 }), 600);
+  setTimeout(() => confetti({ x: innerWidth * 0.8, y: innerHeight * 0.55, count: 90, power: 1.1 }), 900);
+  setTimeout(() => confetti({ count: 120, power: 1.2 }), 1700);
+}
+
 function renderLobby() {
   const players = data.players;
   pop($("#playerCount"), players.length);
@@ -625,7 +632,7 @@ const stopGame = async () => {
 };
 const clearPlayers = () => control("clear");
 twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
-twoStep($("#btnEndedStop"), "หยุดเกมและล้างข้อมูล", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
+twoStep($("#btnStopRoom"), "หยุดเกมและปิดห้อง", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
 twoStep($("#btnClearLobby"), "ล้างรายชื่อผู้เข้าร่วม", "แตะอีกครั้งเพื่อล้าง", clearPlayers);
 
 function setToggle(btn, on) {
@@ -798,6 +805,7 @@ function renderLaunch() {
   $("#openBadge").hidden = !isOpen;
   $("#btnOpenProject").hidden = isOpen;
   $("#btnGoStage").hidden = !isOpen;
+  $("#btnStopRoom").hidden = !isOpen;
   $("#btnOpenProject").disabled = busyOther || !sel.questions.length;
   const note = $("#launchNote");
   if (!sel.questions.length) note.textContent = "เพิ่มคำถามอย่างน้อย 1 ข้อก่อนเริ่มเกม";

@@ -160,14 +160,13 @@
       </div>
 
       <!-- Game finished -->
-      <div class="card ended" id="stageEnded" hidden>
-        <span class="label">จบเกม</span>
-        <h1>ขอบคุณผู้เข้าร่วมทุกคน</h1>
-        <p class="muted" id="endedInfo"></p>
-        <div class="startrow">
-          <button class="btn big" type="button" id="btnEndedStop">หยุดเกมและล้างข้อมูล</button>
+      <div class="finale" id="stageEnded" hidden>
+        <div class="finale-rings" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="finale-stars" id="endedStars" aria-hidden="true"></div>
+        <div class="finale-body">
+          <h1 class="thanks-title" id="thanksTitle">ขอบคุณผู้เข้าร่วมทุกคน</h1>
+          <p class="thanks-sub" id="endedInfo">ผู้เข้าร่วม <b id="endedCount">0</b> คน</p>
         </div>
-        <p class="muted small-note">การหยุดเกมจะล้างรายชื่อผู้เข้าร่วมและคำตอบทั้งหมด ส่วนโปรเจกต์และคำถามยังอยู่ครบ</p>
       </div>
     </section>
 
@@ -205,6 +204,7 @@
                   <span class="badge-active" id="openBadge" hidden>เปิดห้องอยู่</span>
                   <button class="btn big" type="button" id="btnOpenProject">เริ่มเกมโปรเจกต์นี้</button>
                   <button class="btn" type="button" id="btnGoStage" hidden>ไปหน้าจอหลัก</button>
+                  <button class="btn danger small" type="button" id="btnStopRoom" hidden>หยุดเกมและปิดห้อง</button>
                 </div>
               </div>
             </div>

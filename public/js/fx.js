@@ -97,3 +97,70 @@ export function confetti({ x, y, count = 90, power = 1 } = {}) {
 
 export const CHECK_SVG =
   '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// ---------- "thank you" finale ----------
+
+// Split text into grapheme clusters so Thai vowels and tone marks stay on their letter.
+function graphemes(text) {
+  if (typeof Intl !== "undefined" && Intl.Segmenter) {
+    return [...new Intl.Segmenter("th", { granularity: "grapheme" }).segment(text)].map((s) => s.segment);
+  }
+  return Array.from(text);
+}
+
+// Fill a heading with per-letter spans that pop in one by one, then light it up.
+export function letterIn(el, lines, startDelay = 0) {
+  el.textContent = "";
+  el.classList.remove("lit");
+  let i = 0;
+  for (const line of lines) {
+    const row = document.createElement("span");
+    row.className = "tl";
+    for (const g of graphemes(line)) {
+      const s = document.createElement("span");
+      s.className = "g";
+      s.textContent = g === " " ? " " : g;
+      s.style.animationDelay = `${startDelay + i * 55}ms`;
+      row.append(s);
+      i++;
+    }
+    el.append(row);
+  }
+  el.setAttribute("aria-label", lines.join(" "));
+  const total = startDelay + i * 55 + 900;
+  clearTimeout(el._litTimer);
+  el._litTimer = setTimeout(() => el.classList.add("lit"), reducedMotion() ? 0 : total);
+}
+
+// Twinkling four-point stars scattered across a container.
+export function sparkles(container, count = 34) {
+  container.textContent = "";
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("i");
+    const size = 6 + Math.random() * 16;
+    s.style.left = `${Math.random() * 100}%`;
+    s.style.top = `${Math.random() * 100}%`;
+    s.style.width = s.style.height = `${size}px`;
+    s.style.animationDelay = `${(Math.random() * 3).toFixed(2)}s`;
+    s.style.animationDuration = `${(2 + Math.random() * 2.5).toFixed(2)}s`;
+    s.style.setProperty("--c", `var(--w${1 + (i % 6)})`);
+    container.append(s);
+  }
+}
+
+// Count a number up from zero.
+export function countUp(el, to, ms = 1400) {
+  const target = Number(to) || 0;
+  if (reducedMotion() || target === 0) {
+    el.textContent = String(target);
+    return;
+  }
+  const start = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / ms);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = String(Math.round(target * eased));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}

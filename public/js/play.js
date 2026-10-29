@@ -1,6 +1,6 @@
 import { $, $$, el, api, storage, clock, secondsLeft } from "./common.js";
 import { AmbientMusic } from "./music.js";
-import { pop, stagger, confetti, CHECK_SVG } from "./fx.js";
+import { pop, stagger, confetti, CHECK_SVG, letterIn, sparkles } from "./fx.js";
 import { WordCloud } from "./cloud.js";
 
 // Each project has its own link: /play?p=<projectId>
@@ -157,7 +157,9 @@ function render() {
   if (phase === "ended") {
     if ($("#sEnded").hidden && !celebratedEnd) {
       celebratedEnd = true;
-      setTimeout(() => confetti({ count: 120 }), 250);
+      letterIn($("#thanksTitle"), ["ขอบคุณ", "ที่ร่วมแบ่งปันความคิด"], 200);
+      sparkles($("#endedStars"), 22);
+      setTimeout(() => confetti({ count: 110 }), 500);
     }
     return show("sEnded");
   }

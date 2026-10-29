@@ -67,7 +67,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* ---------- entrances ---------- */
 .rise { animation: rise 0.8s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 80ms); }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); filter: blur(6px); } }
-.screen:not([hidden]), .waiting:not([hidden]), .ended:not([hidden]), .lobby:not([hidden]), #stageLive:not([hidden]), .qm, .login:not([hidden]) {
+.screen:not([hidden]), .waiting:not([hidden]), .finale:not([hidden]), .ended:not([hidden]), .lobby:not([hidden]), #stageLive:not([hidden]), .qm, .login:not([hidden]) {
   animation: screenIn 0.6s var(--ease-out) both;
 }
 @keyframes screenIn { from { opacity: 0; transform: translateY(14px) scale(0.985); } }
@@ -170,4 +170,83 @@ tr.row-new td:first-child { animation: rowIn 1.6s var(--ease-out), slideIn 0.5s 
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; }
   .cloud .cw.enter, .cloud .cw.leave { scale: 1; filter: none; }
+}
+
+/* ================= finale: thank-you screen ================= */
+.finale {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: grid; place-items: center; text-align: center;
+  min-height: calc(100vh - 110px); min-height: calc(100dvh - 110px);
+  padding: 40px 16px; border-radius: 24px;
+  background:
+    radial-gradient(60% 60% at 50% 45%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--line);
+}
+body.present .finale { min-height: calc(100vh - 40px); min-height: calc(100dvh - 40px); }
+.finale-rings { position: absolute; inset: 0; z-index: -1; display: grid; place-items: center; pointer-events: none; }
+.finale-rings span {
+  position: absolute; width: 38vmin; height: 38vmin; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  opacity: 0; animation: ringOut 6s var(--ease-out) infinite;
+}
+.finale-rings span:nth-child(2) { animation-delay: 2s; border-color: color-mix(in srgb, var(--w2) 45%, transparent); }
+.finale-rings span:nth-child(3) { animation-delay: 4s; border-color: color-mix(in srgb, var(--w3) 45%, transparent); }
+@keyframes ringOut { 0% { transform: scale(0.4); opacity: 0.9; } 100% { transform: scale(3.2); opacity: 0; } }
+.finale-stars { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.finale-stars i {
+  position: absolute; display: block; background: var(--c, var(--accent));
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  opacity: 0; animation: twinkle 3s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.2) rotate(0deg); }
+  50% { opacity: 0.95; transform: scale(1) rotate(45deg); }
+}
+.finale-body { display: grid; gap: 28px; justify-items: center; }
+.thanks-title { margin: 0; line-height: 1.25; font-weight: 700; }
+.thanks-title .tl { display: block; white-space: nowrap; }
+.thanks-title .tl:first-child { font-size: clamp(3.4rem, 11vw, 9rem); color: var(--accent); }
+.thanks-title .tl + .tl { font-size: clamp(2rem, 6vw, 5rem); color: var(--ink); }
+.thanks-title .g { display: inline-block; animation: gIn 0.9s var(--ease-spring) both; }
+@keyframes gIn { from { opacity: 0; transform: translateY(0.6em) scale(0.5); filter: blur(10px); } }
+/* After the letters land: a light sweep plus a slow glowing blink. */
+.thanks-title.lit .g { animation: none; }
+.thanks-title.lit .tl {
+  background: linear-gradient(100deg, currentColor 0%, currentColor 40%, var(--shine-strong, #fff) 50%, currentColor 60%, currentColor 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sweep 3.2s ease-in-out infinite, glowBlink 2.4s ease-in-out infinite;
+}
+.thanks-title.lit .tl + .tl { animation-name: sweep, glowSoft; animation-delay: 0.5s, 1.2s; }
+@keyframes glowSoft {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--w2) 30%, transparent)); }
+}
+@keyframes sweep { 0% { background-position: 120% 0; } 60%, 100% { background-position: -20% 0; } }
+@keyframes glowBlink {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 55%, transparent)); }
+}
+.thanks-sub {
+  display: inline-flex; align-items: baseline; gap: 10px;
+  padding: 10px 26px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent); border: 1px solid var(--line);
+  font-family: var(--f-display); font-size: clamp(1.1rem, 2vw, 1.6rem); color: var(--ink2);
+  animation: rise 0.9s var(--ease-out) both; animation-delay: 1.4s;
+}
+.thanks-sub b { font-size: 1.5em; color: var(--accent); font-variant-numeric: tabular-nums; }
+:root { --shine-strong: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shine-strong: #eafff9; } }
+:root[data-theme="dark"] { --shine-strong: #eafff9; }
+
+/* phone version */
+.finale.small { min-height: 70vh; min-height: 70dvh; border-radius: 20px; }
+.finale.small .thanks-title .tl:first-child { font-size: clamp(3rem, 16vw, 4.4rem); }
+.finale.small .thanks-title .tl + .tl { font-size: clamp(1.6rem, 8vw, 2.2rem); white-space: normal; }
+
+@media (prefers-reduced-motion: reduce) {
+  .finale-rings span, .finale-stars i { animation: none; opacity: 0.4; }
+  .thanks-title.lit .tl { animation: none; }
 }
