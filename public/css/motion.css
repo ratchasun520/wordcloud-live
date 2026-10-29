@@ -152,8 +152,8 @@ tr.row-new td:first-child { animation: rowIn 1.6s var(--ease-out), slideIn 0.5s 
 
 /* ---------- landing ---------- */
 .hero-title .line { display: block; }
-.demo { position: relative; padding: 0; overflow: hidden; }
-.demo .cloud { height: 400px; border: 0; background: transparent; }
+.demo { position: relative; padding: 0 0 36px; overflow: hidden; }
+.demo .cloud { height: 364px; border: 0; background: transparent; }
 .demo-head {
   position: absolute; top: 14px; left: 16px; z-index: 3;
   display: flex; align-items: center; gap: 8px;
@@ -162,7 +162,7 @@ tr.row-new td:first-child { animation: rowIn 1.6s var(--ease-out), slideIn 0.5s 
 .demo-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s infinite; }
 .demo-count { position: absolute; right: 16px; bottom: 12px; z-index: 3; font-size: 0.85rem; color: var(--ink2); font-variant-numeric: tabular-nums; }
 
-@media (max-width: 520px) { .demo .cloud { height: 300px; } }
+@media (max-width: 520px) { .demo .cloud { height: 270px; } }
 
 /* confetti canvas */
 .fx-canvas { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
