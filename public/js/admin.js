@@ -2,6 +2,7 @@ import { $, el, api, storage, clock, norm, TYPE_LABEL, fmtTime, secondsLeft } fr
 import { WordCloud } from "./cloud.js";
 import { AmbientMusic } from "./music.js";
 import { qrSvg } from "./qr.js";
+import { pop, retrigger, confetti } from "./fx.js";
 
 const TOKEN_KEY = "wc-admin-token";
 const POLL_MS = 2000;
@@ -23,6 +24,8 @@ const clusterState = { busy: false, last: 0, backoffUntil: 0 };
 let renderedPids = new Set();
 let tableSig = "";
 let lastQid = null;
+let seenRows = new Set();
+let celebratedEnd = false;
 
 // ---------- join link + QR ----------
 const joinUrl = location.origin + "/play";
@@ -184,7 +187,7 @@ function render() {
 
   // lobby
   const players = data.players;
-  $("#playerCount").textContent = players.length;
+  pop($("#playerCount"), players.length);
   const pids = new Set(players.map((p) => p.pid));
   const namesBox = $("#playerNames");
   if ([...renderedPids].some((p) => !pids.has(p))) {
@@ -213,6 +216,8 @@ function render() {
       maps.server = {};
       maps.local = {};
       tableSig = "";
+      seenRows = new Set();
+      retrigger($(".qband"), "rise");
       clusterState.backoffUntil = 0;
       $("#aiNote").textContent = "";
     }
@@ -233,6 +238,10 @@ function render() {
     }
   }
 
+  if (phase === "ended" && !celebratedEnd) {
+    celebratedEnd = true;
+    setTimeout(() => confetti({ count: 160, power: 1.2 }), 200);
+  } else if (phase !== "ended") celebratedEnd = false;
   if (phase === "ended") {
     $("#endedInfo").textContent = `มีผู้เล่นทั้งหมด ${players.length} คน`;
   }
@@ -303,10 +312,12 @@ function renderResults(q, answers, playerCount) {
       if (i) groupCell.append(" ");
       groupCell.append(el("span", { class: "grp", text: l }));
     });
+    const fresh = !seenRows.has(a.pid);
+    seenRows.add(a.pid);
     body.append(
       el(
         "tr",
-        {},
+        { class: fresh ? "row-new" : null },
         el("td", { class: "t", text: fmtTime(a.at) }),
         el("td", { class: "n", text: a.name }),
         el("td", { text: a.values.join(" · ") }),
@@ -362,7 +373,7 @@ function tick() {
   const total = s.question ? s.question.seconds : 1;
   const cd = $("#countdown");
   cd.hidden = phase !== "countdown";
-  if (phase === "countdown") $("#countNum").textContent = Math.max(1, secondsLeft(s.startedAt));
+  if (phase === "countdown") pop($("#countNum"), Math.max(1, secondsLeft(s.startedAt)));
   const left = phase === "countdown" ? total : secondsLeft(s.endsAt);
   $("#clockNum").textContent = phase === "closed" ? "0" : left;
   $("#clockLabel").textContent = phase === "closed" ? "หมดเวลา" : "วินาที";

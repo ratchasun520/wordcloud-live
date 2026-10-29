@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/motion.css">
 </head>
 <body>
 <div class="phone">
@@ -38,6 +39,9 @@
 
     <!-- Waiting for start -->
     <section class="card waiting" id="sWait" hidden>
+      <div class="beacon" aria-hidden="true"><span></span><span></span><span></span>
+        <svg viewBox="0 0 26 26"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
+      </div>
       <span class="hello" id="helloName"></span>
       <h1>รอผู้ดูแลเริ่มเกม</h1>
       <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>

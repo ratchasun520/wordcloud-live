@@ -1,5 +1,6 @@
 import { $, $$, el, api, storage, clock, secondsLeft } from "./common.js";
 import { AmbientMusic } from "./music.js";
+import { pop, stagger, confetti, CHECK_SVG } from "./fx.js";
 
 const KEY = "wc-player";
 const POLL_MS = 2000;
@@ -12,6 +13,8 @@ let pollTimer = null;
 let sending = false;
 let renaming = false;
 let musicOn = false;
+let sentKey = null;
+let celebratedEnd = false;
 const music = new AmbientMusic();
 
 const screens = ["sJoin", "sWait", "sCount", "sQuestion", "sSent", "sEnded"];
@@ -77,15 +80,24 @@ function render() {
   updateMusic(phase);
 
   if (phase === "lobby") return show("sWait");
-  if (phase === "ended") return show("sEnded");
+  if (phase === "ended") {
+    if ($("#sEnded").hidden && !celebratedEnd) {
+      celebratedEnd = true;
+      setTimeout(() => confetti({ count: 120 }), 250);
+    }
+    return show("sEnded");
+  }
+  celebratedEnd = false;
   if (!q) return show("sWait");
 
   if (st.answered) return showSent(st.answered, phase === "closed");
   if (phase === "countdown") {
-    $("#countNum").textContent = Math.max(1, secondsLeft(st.startedAt));
+    pop($("#countNum"), Math.max(1, secondsLeft(st.startedAt)));
     return show("sCount");
   }
   if (phase === "closed") {
+    if (sentKey === "closed:" + q.id && !$("#sSent").hidden) return;
+    sentKey = "closed:" + q.id;
     $("#sentTitle").textContent = "หมดเวลาตอบข้อนี้";
     $("#doneMark").textContent = "–";
     $("#mine").textContent = "";
@@ -102,11 +114,15 @@ function render() {
 }
 
 function showSent(values, closed) {
+  const key = (st && st.question ? st.question.id : "") + ":" + values.join("|");
+  $("#sentNote").textContent = closed ? "หมดเวลาข้อนี้แล้ว รอคำถามถัดไป" : "ดูผลรวมได้บนจอหลัก รอคำถามถัดไป";
+  if (sentKey === key && !$("#sSent").hidden) return;
+  sentKey = key;
   $("#sentTitle").textContent = "ส่งคำตอบแล้ว";
-  $("#doneMark").textContent = "✓";
+  $("#doneMark").innerHTML = CHECK_SVG;
   const box = $("#mine");
   box.textContent = "";
-  values.forEach((v) => box.append(el("span", { text: v })));
+  values.forEach((v, i) => box.append(el("span", { text: v, style: `--i:${i}` })));
   $("#sentNote").textContent = closed ? "หมดเวลาข้อนี้แล้ว รอคำถามถัดไป" : "ดูผลรวมได้บนจอหลัก รอคำถามถัดไป";
   show("sSent");
 }
@@ -133,11 +149,13 @@ function buildForm(q, key) {
       list.append(b);
     });
     box.append(list);
+    stagger(list.children, 1);
   } else if (q.type === "open") {
     const ta = el("textarea", { id: "ans0", maxlength: "200", "aria-label": "คำตอบของคุณ", placeholder: "พิมพ์คำตอบของคุณ" });
     const counter = el("div", { class: "counter num", text: "0/200" });
     ta.addEventListener("input", () => (counter.textContent = `${ta.value.length}/200`));
     box.append(el("div", { class: "inputs" }, ta, counter));
+    stagger([box.firstChild], 1);
   } else {
     const wrap = el("div", { class: "inputs" });
     for (let i = 0; i < q.maxWords; i++) {
@@ -158,6 +176,7 @@ function buildForm(q, key) {
       );
     }
     box.append(wrap);
+    stagger(wrap.children, 1);
   }
 }
 
@@ -165,7 +184,7 @@ function tick() {
   if (!st || !me || !me.pid) return;
   const phase = localPhase();
   if (phase === "countdown" && !$("#sCount").hidden) {
-    $("#countNum").textContent = Math.max(1, secondsLeft(st.startedAt));
+    pop($("#countNum"), Math.max(1, secondsLeft(st.startedAt)));
   }
   if (phase === "live" && st.question) {
     const left = secondsLeft(st.endsAt);
@@ -245,6 +264,10 @@ $("#answerForm").addEventListener("submit", async (e) => {
     const res = await api("/answer", { method: "POST", body: { pid: me.pid, questionId: q.id, values } });
     st = { ...st, answered: res.values };
     showSent(res.values, false);
+    requestAnimationFrame(() => {
+      const r = $("#doneMark").getBoundingClientRect();
+      confetti({ x: r.left + r.width / 2, y: r.top + r.height / 2, count: 70, power: 0.8 });
+    });
   } catch (e2) {
     if (e2.status === 403) {
       me = null;

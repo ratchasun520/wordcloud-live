@@ -302,9 +302,20 @@ td .grp { display: inline-block; padding: 1px 8px; border-radius: 999px; backgro
 .done-mark { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-size: 2rem; }
 
 /* landing */
-.landing { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; padding-top: 10vh; }
-.landing h1 { font-size: clamp(2rem, 7vw, 3rem); }
+.landing {
+  max-width: 1180px; margin: 0 auto; padding-top: 8vh;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px; align-items: center;
+}
+.landing-copy { display: grid; gap: 22px; min-width: 0; }
+.landing h1 { font-size: clamp(2.2rem, 5.2vw, 3.6rem); line-height: 1.2; }
+.landing h1 .accent-line { color: var(--accent); }
 .landing .links { display: flex; flex-wrap: wrap; gap: 12px; }
+@media (min-width: 901px) {
+  .landing { padding-top: 0; min-height: calc(100vh - 68px); min-height: calc(100dvh - 68px); }
+}
+@media (max-width: 900px) {
+  .landing { grid-template-columns: minmax(0, 1fr); padding-top: 4vh; gap: 28px; }
+}
 
 @media (max-width: 900px) {
   .lobby, .qm { grid-template-columns: minmax(0, 1fr); }

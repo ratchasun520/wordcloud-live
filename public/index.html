@@ -9,21 +9,71 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/motion.css">
 </head>
 <body>
 <div class="wrap">
   <main class="landing">
-    <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
-      <span>Word Cloud Psycho-CU</span>
+    <div class="landing-copy">
+      <div class="brand rise" style="--i:0">
+        <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
+        <span>Word Cloud Psycho-CU</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="line rise" style="--i:1">ระดมความคิดเรื่อง</span>
+        <span class="line rise accent-line" style="--i:2">ระบบสุขภาพที่ยั่งยืน</span>
+      </h1>
+      <p class="muted rise" style="--i:3">ผู้เล่นสแกน QR จากจอหลักแล้วใส่ชื่อเพื่อร่วมตอบ คำตอบที่ซ้ำหรือมีความหมายคล้ายกันจะรวมกันและขยายใหญ่ขึ้นบนจอหลักแบบสด</p>
+      <div class="links rise" style="--i:4">
+        <a class="btn big" href="/play">เข้าร่วมเกม</a>
+        <a class="btn ghost big" href="/admin">สำหรับผู้ดูแล</a>
+      </div>
     </div>
-    <h1>ระดมความคิดเรื่องระบบสุขภาพที่ยั่งยืน</h1>
-    <p class="muted">ผู้เล่นสแกน QR จากจอหลักแล้วใส่ชื่อเพื่อร่วมตอบ คำตอบที่ซ้ำหรือมีความหมายคล้ายกันจะรวมกันและขยายใหญ่ขึ้นบนจอหลักแบบสด</p>
-    <div class="links">
-      <a class="btn big" href="/play">เข้าร่วมเกม</a>
-      <a class="btn ghost big" href="/admin">สำหรับผู้ดูแล</a>
+    <div class="card demo rise" style="--i:3" aria-label="ตัวอย่างเมฆคำ">
+      <div class="demo-head"><span class="dot"></span>ตัวอย่างการทำงาน</div>
+      <div class="cloud" id="demoCloud"></div>
+      <div class="demo-count" id="demoCount" aria-hidden="true"></div>
     </div>
   </main>
 </div>
+<script type="module">
+  import { WordCloud } from "/js/cloud.js";
+  const WORDS = [
+    ["ความยั่งยืน", 9], ["สุขภาพดี", 8], ["ความเท่าเทียม", 6], ["บุคลากร", 6], ["ป้องกันโรค", 5],
+    ["งบประมาณ", 5], ["ดิจิทัล", 4], ["ชุมชน", 4], ["ปฐมภูมิ", 3], ["สุขภาพจิต", 5], ["อสม.", 3],
+    ["ข้อมูล", 3], ["สิ่งแวดล้อม", 3], ["นวัตกรรม", 2], ["ธรรมาภิบาล", 2], ["ผู้สูงอายุ", 2], ["AI", 2],
+  ];
+  const bag = WORDS.flatMap(([w, n]) => Array(n).fill(w));
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const el = document.getElementById("demoCloud");
+  const countEl = document.getElementById("demoCount");
+  const cloud = new WordCloud(el);
+  cloud.setEmptyText("");
+  let counts = new Map();
+  let votes = 0;
+  const show = () => {
+    cloud.update([...counts].map(([text, count]) => ({ text, count })));
+    countEl.textContent = `${votes} คำตอบ`;
+  };
+  const vote = () => {
+    const w = bag[Math.floor(Math.random() * bag.length)];
+    counts.set(w, (counts.get(w) || 0) + 1);
+    votes++;
+    show();
+  };
+  // Start already filled so the first frame shows what the product does.
+  for (let i = 0; i < 18; i++) vote();
+  if (!reduce) {
+    setInterval(() => {
+      if (votes >= 60) {
+        counts = new Map();
+        votes = 0;
+        show();
+        return;
+      }
+      vote();
+    }, 750);
+  }
+</script>
 </body>
 </html>
