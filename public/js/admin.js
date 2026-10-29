@@ -353,7 +353,8 @@ function render() {
     $("#btnNext").textContent = last ? "จบเกม" : s.advance === "auto" ? "ข้ามไปข้อถัดไป" : "ข้อถัดไป";
     const isOpen = q.type === "open";
     $("#btnAI").hidden = q.type !== "wordcloud";
-    $("#thGroup").hidden = q.type !== "wordcloud" || !aiOn;
+    const thGroup = $("#thGroup");
+    if (thGroup) thGroup.hidden = q.type !== "wordcloud" || !aiOn;
     // Long answers: a scrollable board of answer cards replaces the cloud and the table.
     $("#cloud").hidden = isOpen;
     $("#answerBoard").hidden = !isOpen;
@@ -508,6 +509,11 @@ function renderResults(q, answers, playerCount) {
   }
   const { words, labelOf } = buildWords(q, answers);
   cloud.update(words);
+  if (q.type === "choice") {
+    renderChoiceTable(q, answers);
+    return;
+  }
+  setTableHead("people");
 
   const showGroup = q.type === "wordcloud" && aiOn;
   // Only show a group when AI moved the answer into a differently written group.
@@ -540,6 +546,76 @@ function renderResults(q, answers, playerCount) {
         answerCell,
         groupCell,
         el("td", { class: "t", text: fmtTime(a.at) }),
+      ),
+    );
+  }
+}
+
+// Table header: "people" (one row per person) or "choice" (one row per option).
+let tableHeadMode = "people";
+function setTableHead(mode) {
+  if (tableHeadMode === mode) return;
+  tableHeadMode = mode;
+  const newest = document.querySelector("#answersCard .newest");
+  if (newest) newest.textContent = mode === "choice" ? "เรียงตามจำนวนผู้เลือก" : "ล่าสุดอยู่บนสุด";
+  const head = $("#answersHead");
+  head.textContent = "";
+  const tr = el("tr");
+  if (mode === "choice") {
+    tr.append(el("th", { text: "ตัวเลือก" }), el("th", { text: "ผู้ที่เลือกข้อนี้" }), el("th", { class: "t", text: "จำนวน" }));
+  } else {
+    tr.append(
+      el("th", { text: "ผู้ตอบ" }),
+      el("th", { text: "คำตอบ" }),
+      el("th", { id: "thGroup", text: "รวมเข้ากลุ่ม", hidden: !aiOn }),
+      el("th", { class: "t", text: "เวลา" }),
+    );
+  }
+  head.append(tr);
+}
+
+// Choice questions: one row per option with everyone who picked it.
+function renderChoiceTable(q, answers) {
+  setTableHead("choice");
+  const byOption = new Map(q.options.map((o) => [o, []]));
+  for (const a of answers) {
+    const pick = a.values[0];
+    if (!byOption.has(pick)) byOption.set(pick, []);
+    byOption.get(pick).push(a);
+  }
+  const total = answers.length || 1;
+  const order = [...byOption.entries()]
+    .map(([option, people], i) => ({ option, people, i }))
+    .sort((x, y) => y.people.length - x.people.length || x.i - y.i);
+  const sig = JSON.stringify(["choice", order.map((r) => [r.option, r.people.map((p) => p.pid)])]);
+  if (sig === tableSig) return;
+  tableSig = sig;
+  const body = $("#answerRows");
+  body.textContent = "";
+  const top = order[0] ? order[0].people.length : 0;
+  for (const { option, people } of order) {
+    const pct = Math.round((people.length / total) * 100);
+    const list = el("div", { class: "people" });
+    const names = el("td", { class: "people-cell" }, list);
+    if (people.length) {
+      for (const p of people) {
+        const fresh = !seenRows.has(p.pid);
+        seenRows.add(p.pid);
+        list.append(el("span", { class: "person" + (fresh ? " fresh" : "") }, avatar(p.name), el("span", { text: p.name })));
+      }
+    } else list.append(el("span", { class: "muted", text: "ยังไม่มีผู้เลือก" }));
+    body.append(
+      el(
+        "tr",
+        { class: "choice-row" + (people.length ? "" : " zero") + (people.length && people.length === top ? " lead" : "") },
+        el(
+          "td",
+          { class: "opt-cell" },
+          el("span", { class: "opt-name", text: option }),
+          el("span", { class: "opt-bar", "aria-hidden": "true" }, el("i", { style: `width:${answers.length ? pct : 0}%` })),
+        ),
+        names,
+        el("td", { class: "t count" }, el("b", { text: people.length }), el("small", { text: answers.length ? ` ${pct}%` : "" })),
       ),
     );
   }

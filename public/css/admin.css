@@ -325,3 +325,26 @@ td.g .grp { margin: 3px 6px 3px 0; padding: 3px 10px; font-size: 0.9rem; }
 @media (prefers-reduced-motion: reduce) {
   .acard.enter { opacity: 1; transform: none; }
 }
+
+/* ================= choice questions: one row per option ================= */
+tr.choice-row td { vertical-align: top; padding-block: 16px; }
+td.opt-cell { width: 34%; min-width: 220px; }
+.opt-name { display: block; font-family: var(--f-display); font-weight: 600; font-size: 1.1rem; line-height: 1.45; overflow-wrap: anywhere; }
+.opt-bar { display: block; height: 6px; margin-top: 10px; border-radius: 3px; background: color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; }
+.opt-bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.7s var(--ease-out); }
+tr.choice-row.lead .opt-name { color: var(--accent); }
+tr.choice-row.zero td { opacity: 0.55; }
+.people { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.person {
+  display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px;
+  border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+  font-family: var(--f-display); font-weight: 500;
+}
+.person .avatar { width: 28px; height: 28px; font-size: 0.85rem; }
+.person.fresh { animation: chipIn 0.55s var(--ease-spring) both; }
+td.count b { font-family: var(--f-display); font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+td.count small { color: var(--ink2); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+tr.choice-row.lead td.count b { color: var(--accent); }
+@media (max-width: 640px) {
+  td.opt-cell { min-width: 140px; }
+}
