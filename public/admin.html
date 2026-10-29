@@ -11,8 +11,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="/css/motion.css">
+<link rel="stylesheet" href="/css/admin.css">
 </head>
-<body>
+<body class="admin">
 
 <header class="topbar" id="topbar" hidden>
   <div class="brand">
@@ -21,9 +22,9 @@
   </div>
   <nav class="tabs" role="tablist" aria-label="เมนูผู้ดูแล">
     <button class="tab" role="tab" id="tabStage" aria-selected="true" aria-controls="viewStage">หน้าจอหลัก</button>
-    <button class="tab" role="tab" id="tabQuestions" aria-selected="false" aria-controls="viewQuestions">คำถาม</button>
+    <button class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="viewSettings">ตั้งค่าเกม</button>
   </nav>
-  <span class="chip" id="statusChip"><span class="dot"></span><span id="statusText">ล็อบบี้</span></span>
+  <span class="chip" id="statusChip"><span class="dot"></span><span id="statusText">ห้องรอ</span></span>
   <span class="spacer"></span>
   <button class="btn ghost small" id="btnLogout" type="button">ออกจากระบบ</button>
 </header>
@@ -41,13 +42,13 @@
     </form>
   </section>
 
-  <div class="container" id="app" hidden>
+  <div class="container app" id="app" hidden>
     <p class="notice" id="netError" hidden></p>
 
-    <!-- Stage -->
-    <section id="viewStage" role="tabpanel" aria-labelledby="tabStage" class="container">
+    <!-- ================= Stage ================= -->
+    <section id="viewStage" role="tabpanel" aria-labelledby="tabStage">
 
-      <!-- Lobby -->
+      <!-- Waiting room: who has joined. No question is shown here. -->
       <div class="lobby" id="stageLobby">
         <div class="card qrbox">
           <h1>สแกนเพื่อร่วมเล่น</h1>
@@ -57,27 +58,30 @@
           </div>
         </div>
         <div class="card side">
-          <div>
-            <span class="label">ผู้เล่นที่เข้ามาแล้ว</span>
-            <div class="bigcount"><b id="playerCount">0</b><span class="muted">คน</span></div>
+          <div class="side-head">
+            <div>
+              <span class="label">ผู้เข้าร่วมที่เข้ามาแล้ว</span>
+              <div class="bigcount"><b id="playerCount">0</b><span class="muted">คน</span></div>
+            </div>
+            <div class="project-pill" id="lobbyProject"></div>
           </div>
           <div class="names" id="playerNames" aria-live="polite"></div>
-          <p class="muted" id="lobbyInfo"></p>
-          <div class="startrow">
+          <p class="names-empty muted" id="namesEmpty">ยังไม่มีผู้เข้าร่วม ให้ผู้เล่นสแกน QR แล้วใส่ชื่อ</p>
+          <div class="startrow hide-present">
             <button class="btn big" type="button" id="btnStart">เริ่มเกม</button>
-            <button class="btn ghost" type="button" id="btnGoQuestions">จัดการคำถาม</button>
-          </div>
-          <div class="startrow">
-            <button class="btn danger small" type="button" id="btnReset">ล้างผู้เล่นและคำตอบทั้งหมด</button>
+            <button class="btn ghost" type="button" id="btnGoSettings">ตั้งค่าเกม</button>
+            <span class="grow"></span>
+            <button class="btn ghost" type="button" id="btnPresentLobby">เต็มจอ</button>
+            <button class="btn danger small" type="button" id="btnClearLobby">ล้างรายชื่อผู้เข้าร่วม</button>
           </div>
         </div>
       </div>
 
-      <!-- Live question -->
-      <div class="container" id="stageLive" hidden>
+      <!-- Question in play -->
+      <div class="stage" id="stageLive" hidden>
         <div class="qband">
-          <div>
-            <div class="qno" id="qNo">ข้อ 1/4</div>
+          <div class="qmain">
+            <div class="qno" id="qNo"></div>
             <h1 id="qText"></h1>
           </div>
           <div class="clock" id="clock">
@@ -88,7 +92,10 @@
         <div class="timebar" id="timebar"><i id="timebarFill"></i></div>
         <div class="cloudwrap">
           <div class="cloud" id="cloud" aria-label="เมฆคำตอบ"></div>
-          <div class="countdown-overlay" id="countdown" hidden><div><span class="muted">คำถามจะเริ่มใน</span><b id="countNum">3</b></div></div>
+          <div class="countdown-overlay" id="countdown" hidden>
+            <div><span class="muted" id="countLabel">คำถามข้อที่ 1 กำลังจะเริ่ม</span><b id="countNum">3</b></div>
+          </div>
+          <div class="answered-badge num" id="answeredBadge"></div>
         </div>
         <div class="controls hide-present">
           <button class="btn ghost" type="button" id="btnClose">ปิดรับคำตอบ</button>
@@ -99,10 +106,10 @@
           <button class="btn ghost on" type="button" id="btnMusic" aria-pressed="true">เพลงเบาๆ</button>
           <button class="btn ghost" type="button" id="btnQR">แสดง QR</button>
           <button class="btn ghost" type="button" id="btnPresent">เต็มจอ</button>
-          <button class="btn ghost" type="button" id="btnLobby">กลับล็อบบี้</button>
+          <button class="btn danger" type="button" id="btnStop">หยุดเกม</button>
         </div>
         <p class="ai-note hide-present" id="aiNote"></p>
-        <div class="card">
+        <div class="card hide-present">
           <div class="tablehead">
             <h2>คำตอบของผู้เล่น</h2>
             <span class="muted num" id="answeredCount">ตอบแล้ว 0 จาก 0 คน</span>
@@ -116,60 +123,97 @@
         </div>
       </div>
 
-      <!-- Ended -->
+      <!-- Game finished -->
       <div class="card ended" id="stageEnded" hidden>
         <span class="label">จบเกม</span>
-        <h1>ขอบคุณผู้เล่นทุกคน</h1>
+        <h1>ขอบคุณผู้เข้าร่วมทุกคน</h1>
         <p class="muted" id="endedInfo"></p>
         <div class="startrow">
-          <button class="btn" type="button" id="btnEndedLobby">กลับล็อบบี้</button>
-          <button class="btn ghost" type="button" id="btnRestart">เล่นชุดคำถามอีกครั้ง</button>
+          <button class="btn big" type="button" id="btnEndedStop">หยุดเกมและล้างข้อมูล</button>
         </div>
+        <p class="muted small-note">การหยุดเกมจะล้างรายชื่อผู้เข้าร่วมและคำตอบทั้งหมด ส่วนโปรเจกต์และคำถามยังอยู่ครบ</p>
       </div>
     </section>
 
-    <!-- Question manager -->
-    <section id="viewQuestions" role="tabpanel" aria-labelledby="tabQuestions" hidden>
-      <div class="qm">
-        <div class="card">
+    <!-- ================= Settings ================= -->
+    <section id="viewSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+      <div class="settings">
+        <aside class="card projects">
           <div class="qhead">
-            <h2>ชุดคำถาม <span class="muted num" id="qCount"></span></h2>
-            <button class="btn small" type="button" id="btnNewQ">เพิ่มคำถาม</button>
+            <h2>โปรเจกต์</h2>
+            <button class="btn small" type="button" id="btnNewProject">สร้างใหม่</button>
           </div>
-          <div class="qlist" id="qList"></div>
-        </div>
+          <div class="plist" id="projectList" role="listbox" aria-label="รายการโปรเจกต์"></div>
+        </aside>
 
-        <form class="card editor" id="qForm" novalidate>
-          <h2 id="editorTitle">เพิ่มคำถาม</h2>
-          <label class="field"><span>คำถาม</span>
-            <textarea id="fText" maxlength="200" required placeholder="เช่น นึกถึงระบบสุขภาพที่ยั่งยืน คุณนึกถึงคำว่าอะไร"></textarea>
-          </label>
-          <fieldset class="field" style="border:0;padding:0;margin:0">
-            <span>แบบคำถาม</span>
-            <div class="typepick">
-              <label><input type="radio" name="fType" value="wordcloud" checked><b>Word Cloud</b><small>ตอบเป็นคำสั้นๆ คำซ้ำจะใหญ่ขึ้น</small></label>
-              <label><input type="radio" name="fType" value="choice"><b>ตัวเลือก</b><small>เลือกหนึ่งข้อจากที่กำหนด</small></label>
-              <label><input type="radio" name="fType" value="open"><b>คำตอบยาว</b><small>ตอบเป็นประโยค AI สรุปเป็นประเด็น</small></label>
+        <div class="settings-main">
+          <div class="card pform">
+            <div class="pform-head">
+              <label class="field grow"><span>ชื่อโปรเจกต์</span>
+                <input type="text" id="pName" maxlength="60">
+              </label>
+              <div class="pform-actions">
+                <span class="badge-active" id="activeBadge" hidden>ใช้เล่นอยู่</span>
+                <button class="btn" type="button" id="btnUseProject">ใช้โปรเจกต์นี้ในเกม</button>
+                <button class="btn ghost small" type="button" id="btnDupProject">ทำสำเนา</button>
+                <button class="btn danger small" type="button" id="btnDelProject">ลบโปรเจกต์</button>
+              </div>
             </div>
-          </fieldset>
-          <label class="field" id="fOptionsWrap" hidden><span>ตัวเลือก (บรรทัดละ 1 ข้อ, 2–8 ข้อ)</span>
-            <textarea id="fOptions" placeholder="ตัวเลือกที่ 1&#10;ตัวเลือกที่ 2"></textarea>
-          </label>
-          <div class="row2">
-            <label class="field"><span>เวลาตอบ (วินาที)</span>
-              <input type="number" id="fSeconds" min="10" max="600" step="5" value="60" inputmode="numeric">
+            <fieldset class="field mode" style="border:0;padding:0;margin:0">
+              <span>การเลื่อนไปคำถามถัดไป</span>
+              <div class="typepick two">
+                <label><input type="radio" name="pAdvance" value="manual"><b>ผู้ดูแลกดเลื่อนเอง</b><small>หมดเวลาแล้วผลค้างบนจอจนกว่าจะกด “ข้อถัดไป”</small></label>
+                <label><input type="radio" name="pAdvance" value="auto"><b>เลื่อนอัตโนมัติ</b><small>หมดเวลาแล้วแสดงผลตามเวลาที่ตั้ง แล้วไปข้อถัดไปเอง</small></label>
+              </div>
+            </fieldset>
+            <label class="field narrow" id="pResultWrap" hidden><span>แสดงผลลัพธ์ก่อนไปข้อถัดไป (วินาที)</span>
+              <input type="number" id="pResult" min="3" max="120" step="1" inputmode="numeric">
             </label>
-            <label class="field" id="fMaxWrap"><span>จำนวนคำที่ส่งได้ต่อคน</span>
-              <select id="fMax"><option value="1">1 คำ</option><option value="2">2 คำ</option><option value="3" selected>3 คำ</option><option value="4">4 คำ</option><option value="5">5 คำ</option></select>
-            </label>
+            <p class="saved" id="projectNote" aria-live="polite"></p>
           </div>
-          <p class="notice" id="formError" hidden></p>
-          <div class="startrow">
-            <button class="btn" type="submit" id="btnSaveQ">เพิ่มคำถาม</button>
-            <button class="btn ghost" type="button" id="btnCancelQ" hidden>ยกเลิกการแก้ไข</button>
+
+          <div class="qm">
+            <div class="card">
+              <div class="qhead">
+                <h2>คำถาม <span class="muted num" id="qCount"></span></h2>
+                <button class="btn small" type="button" id="btnNewQ">เพิ่มคำถาม</button>
+              </div>
+              <div class="qlist" id="qList"></div>
+            </div>
+
+            <form class="card editor" id="qForm" novalidate>
+              <h2 id="editorTitle">เพิ่มคำถาม</h2>
+              <label class="field"><span>คำถาม</span>
+                <textarea id="fText" maxlength="200" required placeholder="เช่น นึกถึงระบบสุขภาพที่ยั่งยืน คุณนึกถึงคำว่าอะไร"></textarea>
+              </label>
+              <fieldset class="field" style="border:0;padding:0;margin:0">
+                <span>แบบคำถาม</span>
+                <div class="typepick">
+                  <label><input type="radio" name="fType" value="wordcloud" checked><b>Word Cloud</b><small>ตอบเป็นคำสั้นๆ คำซ้ำจะใหญ่ขึ้น</small></label>
+                  <label><input type="radio" name="fType" value="choice"><b>ตัวเลือก</b><small>เลือกหนึ่งข้อจากที่กำหนด</small></label>
+                  <label><input type="radio" name="fType" value="open"><b>คำตอบยาว</b><small>ตอบเป็นประโยค AI สรุปเป็นประเด็น</small></label>
+                </div>
+              </fieldset>
+              <label class="field" id="fOptionsWrap" hidden><span>ตัวเลือก (บรรทัดละ 1 ข้อ, 2–8 ข้อ)</span>
+                <textarea id="fOptions" placeholder="ตัวเลือกที่ 1&#10;ตัวเลือกที่ 2"></textarea>
+              </label>
+              <div class="row2">
+                <label class="field"><span>เวลาตอบ (วินาที)</span>
+                  <input type="number" id="fSeconds" min="10" max="600" step="5" value="60" inputmode="numeric">
+                </label>
+                <label class="field" id="fMaxWrap"><span>จำนวนคำที่ส่งได้ต่อคน</span>
+                  <select id="fMax"><option value="1">1 คำ</option><option value="2">2 คำ</option><option value="3" selected>3 คำ</option><option value="4">4 คำ</option><option value="5">5 คำ</option></select>
+                </label>
+              </div>
+              <p class="notice" id="formError" hidden></p>
+              <div class="startrow">
+                <button class="btn" type="submit" id="btnSaveQ">เพิ่มคำถาม</button>
+                <button class="btn ghost" type="button" id="btnCancelQ" hidden>ยกเลิกการแก้ไข</button>
+              </div>
+              <p class="saved" id="savedNote" aria-live="polite"></p>
+            </form>
           </div>
-          <p class="saved" id="savedNote" aria-live="polite"></p>
-        </form>
+        </div>
       </div>
     </section>
   </div>

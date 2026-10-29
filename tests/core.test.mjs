@@ -44,6 +44,21 @@ function client(api) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function useQuestions(c, questions, settings = {}) {
+  const r = await c.call("PUT", "/admin/projects", {
+    projects: [{ id: "p-test1", name: "ทดสอบ", questions, settings }],
+    activeProjectId: "p-test1",
+  });
+  return { status: r.status, body: { questions: r.body.projects ? r.body.projects[0].questions : null, ...r.body } };
+}
+
+function skipCountdown(store) {
+  const st = JSON.parse(store.data.get("state"));
+  st.startedAt = Date.now() - 1;
+  store.data.set("state", JSON.stringify(st));
+  return st;
+}
+
 test("norm matches between server and browser", () => {
   for (const s of ["  Health ", "สุขภาพ ดี", "ระบบ-สุขภาพ!", "AI.", "“ยั่งยืน”", "!!!", "การเงิน การคลัง"]) {
     assert.equal(norm(s), clientNorm(s), s);
@@ -100,9 +115,7 @@ test("full game flow with AI grouping", async () => {
   assert.equal((await c.call("GET", "/admin/overview", null, false)).status, 401);
 
   // Replace default questions with one short word-cloud question.
-  const saved = await c.call("PUT", "/admin/questions", {
-    questions: [{ text: "นึกถึงคำว่าอะไร", type: "wordcloud", seconds: 10, maxWords: 2 }],
-  });
+  const saved = await useQuestions(c, [{ text: "นึกถึงคำว่าอะไร", type: "wordcloud", seconds: 10, maxWords: 2 }]);
   assert.equal(saved.status, 200);
   const qid = saved.body.questions[0].id;
 
@@ -180,7 +193,7 @@ test("AI failure falls back without saving", async () => {
   });
   const c = client(api);
   await c.login("pw");
-  const qid = (await c.call("PUT", "/admin/questions", { questions: [{ text: "q", type: "wordcloud", seconds: 30, maxWords: 1 }] }))
+  const qid = (await useQuestions(c, [{ text: "q", type: "wordcloud", seconds: 30, maxWords: 1 }]))
     .body.questions[0].id;
   await c.call("POST", "/admin/control", { action: "start" });
   const st = JSON.parse(store.data.get("state"));
@@ -199,9 +212,7 @@ test("choice answers must be one of the options", async () => {
   const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
   await c.login("pw");
   const qid = (
-    await c.call("PUT", "/admin/questions", {
-      questions: [{ text: "เลือก", type: "choice", options: ["ก", "ข"], seconds: 30 }],
-    })
+    await useQuestions(c, [{ text: "เลือก", type: "choice", options: ["ก", "ข"], seconds: 30 }])
   ).body.questions[0].id;
   await c.call("POST", "/admin/control", { action: "start" });
   const st = JSON.parse(store.data.get("state"));
@@ -217,4 +228,107 @@ test("login without ADMIN_PASSWORD explains the setup step", async () => {
   const r = await c.login("x");
   assert.equal(r.status, 500);
   assert.match(r.body.error, /ADMIN_PASSWORD/);
+});
+
+test("old question list becomes the first project", async () => {
+  const store = memoryStore();
+  await store.setJSON("questions", [{ id: "q-old1", text: "คำถามเดิม", type: "wordcloud", seconds: 30, maxWords: 1, options: [] }]);
+  const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
+  await c.login("pw");
+  const ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.projects.length, 1);
+  assert.equal(ov.projects[0].questions[0].text, "คำถามเดิม");
+  assert.equal(ov.activeProjectId, ov.projects[0].id);
+});
+
+test("projects: switch active project only while not playing", async () => {
+  const store = memoryStore();
+  const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
+  await c.login("pw");
+  const projects = [
+    { id: "p-aaaa1", name: "A", questions: [{ text: "qa", type: "wordcloud", seconds: 30, maxWords: 1 }] },
+    { id: "p-bbbb1", name: "B", questions: [{ text: "qb", type: "wordcloud", seconds: 30, maxWords: 1 }], settings: { advance: "auto", resultSeconds: 5 } },
+  ];
+  let r = await c.call("PUT", "/admin/projects", { projects, activeProjectId: "p-bbbb1" });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.projects[1].settings.advance, "auto");
+  await c.call("POST", "/admin/control", { action: "start" });
+  let s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.projectName, "B");
+  assert.equal(s.advance, "auto");
+  r = await c.call("PUT", "/admin/projects", { projects, activeProjectId: "p-aaaa1" });
+  assert.equal(r.status, 409);
+  // Editing questions of the running project is fine; the game keeps its snapshot.
+  r = await c.call("PUT", "/admin/projects", { projects: [projects[0], { ...projects[1], questions: [] }], activeProjectId: "p-bbbb1" });
+  assert.equal(r.status, 200);
+  s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.question.text, "qb");
+});
+
+test("auto mode moves to the next question after the results pause", async () => {
+  const store = memoryStore();
+  const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
+  await c.login("pw");
+  await useQuestions(
+    c,
+    [
+      { text: "ข้อหนึ่ง", type: "wordcloud", seconds: 10, maxWords: 1 },
+      { text: "ข้อสอง", type: "wordcloud", seconds: 10, maxWords: 1 },
+    ],
+    { advance: "auto", resultSeconds: 3 },
+  );
+  await c.call("POST", "/admin/control", { action: "start" });
+  // Pretend question 1 ended 4 seconds ago (results pause is 3 s).
+  const st = JSON.parse(store.data.get("state"));
+  st.startedAt = Date.now() - 14000;
+  st.endsAt = Date.now() - 4000;
+  store.data.set("state", JSON.stringify(st));
+  let s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.qIndex, 1);
+  assert.equal(s.question.text, "ข้อสอง");
+  assert.ok(s.nextAt > s.endsAt);
+  // Long after the last question: game ends by itself.
+  const st2 = JSON.parse(store.data.get("state"));
+  st2.endsAt = Date.now() - 60000;
+  store.data.set("state", JSON.stringify(st2));
+  s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.phase, "ended");
+});
+
+test("manual mode waits for the admin", async () => {
+  const store = memoryStore();
+  const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
+  await c.login("pw");
+  await useQuestions(c, [
+    { text: "1", type: "wordcloud", seconds: 10, maxWords: 1 },
+    { text: "2", type: "wordcloud", seconds: 10, maxWords: 1 },
+  ]);
+  await c.call("POST", "/admin/control", { action: "start" });
+  const st = JSON.parse(store.data.get("state"));
+  st.startedAt = Date.now() - 610000;
+  st.endsAt = Date.now() - 600000;
+  store.data.set("state", JSON.stringify(st));
+  let s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.phase, "closed");
+  assert.equal(s.qIndex, 0);
+  await c.call("POST", "/admin/control", { action: "next" });
+  s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.qIndex, 1);
+});
+
+test("stop clears players and answers", async () => {
+  const store = memoryStore();
+  const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
+  await c.login("pw");
+  const qid = (await useQuestions(c, [{ text: "q", type: "wordcloud", seconds: 30, maxWords: 1 }])).body.questions[0].id;
+  const p = (await c.call("POST", "/join", { name: "a" }, false)).body;
+  await c.call("POST", "/admin/control", { action: "start" });
+  skipCountdown(store);
+  assert.equal((await c.call("POST", "/answer", { pid: p.pid, questionId: qid, values: ["x"] }, false)).status, 200);
+  await c.call("POST", "/admin/control", { action: "stop" });
+  const ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.state.phase, "lobby");
+  assert.equal(ov.players.length, 0);
+  assert.equal([...store.data.keys()].filter((k) => k.startsWith("answers/") || k.startsWith("players/")).length, 0);
+  assert.equal(ov.projects[0].questions.length, 1); // questions are kept
 });

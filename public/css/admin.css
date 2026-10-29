@@ -1,0 +1,75 @@
+/* Admin layout: full-width, projector-sized stage and a settings workspace. */
+body.admin .wrap { padding-block: 16px 32px; }
+.app { max-width: 1840px; }
+.grow { flex: 1; }
+.small-note { font-size: 0.9rem; }
+.tab:focus { outline: none; }
+.tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- waiting room ---------- */
+.lobby { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr); gap: 24px; min-height: calc(100vh - 120px); min-height: calc(100dvh - 120px); }
+.lobby .qrbox { align-content: center; padding: 32px; }
+.lobby .qrbox h1 { font-size: clamp(2rem, 3.2vw, 3.2rem); }
+.lobby .qr { width: min(100%, 50vh, 460px); }
+.lobby .joinurl { font-size: clamp(1.1rem, 1.6vw, 1.5rem); }
+.lobby .side { display: grid; grid-template-rows: auto 1fr auto; gap: 20px; padding: 28px 32px; align-content: stretch; }
+.side-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; }
+.lobby .bigcount b { font-size: clamp(4rem, 9vw, 7.5rem); color: var(--accent); }
+.project-pill { padding: 8px 16px; border-radius: 999px; background: var(--accent-soft); font-family: var(--f-display); font-weight: 500; text-align: right; }
+.project-pill small { display: block; font-family: var(--f-body); font-weight: 400; color: var(--ink2); font-size: 0.85rem; }
+.lobby .names { max-height: none; min-height: 0; overflow: auto; align-content: flex-start; gap: 12px; }
+.lobby .names span { font-size: clamp(1.1rem, 1.6vw, 1.6rem); padding: 8px 20px; }
+.names-empty { font-size: 1.1rem; align-self: start; }
+.startrow .grow { flex: 1; }
+
+/* ---------- question stage ---------- */
+.stage { display: grid; gap: 16px; }
+.qband h1 { font-size: clamp(1.8rem, 3.3vw, 3.4rem); }
+.qmain { min-width: 0; }
+.qband .qno { font-size: clamp(1rem, 1.3vw, 1.3rem); }
+.clock b { font-size: clamp(3rem, 6vw, 5rem); }
+.qband h1.veiled { visibility: hidden; }
+.cloud { height: max(440px, calc(100vh - 300px)); height: max(440px, calc(100dvh - 300px)); }
+.countdown-overlay b { font-size: clamp(6rem, 16vw, 12rem); }
+.countdown-overlay .muted { font-size: clamp(1.2rem, 2vw, 1.8rem); }
+.answered-badge {
+  position: absolute; right: 16px; bottom: 14px; z-index: 1;
+  padding: 6px 14px; border-radius: 999px; background: var(--accent-soft);
+  font-family: var(--f-display); font-weight: 500; font-size: clamp(0.95rem, 1.2vw, 1.2rem);
+}
+body.present .cloud { height: calc(100vh - 210px); height: calc(100dvh - 210px); }
+body.present .app { max-width: none; }
+
+/* ---------- settings ---------- */
+.settings { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+.projects { position: sticky; top: 84px; }
+.plist { display: grid; padding: 8px; gap: 4px; }
+.pitem {
+  display: grid; gap: 2px; text-align: left; width: 100%;
+  padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pitem:hover { background: var(--bg); }
+.pitem[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.pitem b { font-family: var(--f-display); font-weight: 600; overflow-wrap: anywhere; }
+.pitem small { color: var(--ink2); }
+.pitem .live-tag { color: var(--accent); font-weight: 600; }
+.settings-main { display: grid; gap: 20px; min-width: 0; }
+.pform { padding: 20px; display: grid; gap: 16px; }
+.pform-head { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.pform-head .field { min-width: 220px; }
+.pform-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.badge-active { padding: 6px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-family: var(--f-display); font-weight: 600; font-size: 0.9rem; }
+.typepick.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.field.narrow { max-width: 320px; }
+
+@media (max-width: 1100px) {
+  .settings { grid-template-columns: minmax(0, 1fr); }
+  .projects { position: static; }
+}
+@media (max-width: 900px) {
+  .lobby { min-height: 0; grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .typepick.two { grid-template-columns: minmax(0, 1fr); }
+}

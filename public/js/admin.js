@@ -6,16 +6,22 @@ import { pop, retrigger, confetti } from "./fx.js";
 
 const TOKEN_KEY = "wc-admin-token";
 const POLL_MS = 2000;
+const ADVANCE_LABEL = { manual: "ผู้ดูแลกดเลื่อนเอง", auto: "เลื่อนอัตโนมัติ" };
 
 let token = storage.get(TOKEN_KEY);
 let data = null;
-let questions = [];
-let questionsSig = "";
-let savingQuestions = 0;
-let editingId = null;
 let pollTimer = null;
 let aiOn = storage.get("wc-ai") ?? true;
 let musicOn = storage.get("wc-music") ?? true;
+
+// settings state
+let projects = [];
+let activeProjectId = null;
+let selectedId = storage.get("wc-selected-project");
+let projectsSig = "";
+let saving = 0;
+let saveVersion = 0;
+let editingQid = null;
 
 const music = new AmbientMusic();
 const cloud = new WordCloud($("#cloud"));
@@ -29,8 +35,9 @@ let celebratedEnd = false;
 
 // ---------- join link + QR ----------
 const joinUrl = location.origin + "/play";
-$("#joinUrl").textContent = joinUrl.replace(/^https?:\/\//, "");
-$("#joinUrl2").textContent = joinUrl.replace(/^https?:\/\//, "");
+const shortUrl = joinUrl.replace(/^https?:\/\//, "");
+$("#joinUrl").textContent = shortUrl;
+$("#joinUrl2").textContent = shortUrl;
 const svg = qrSvg(joinUrl);
 $("#qrLobby").innerHTML = svg;
 $("#qrBig").innerHTML = svg;
@@ -68,13 +75,13 @@ function showLogin(message) {
   err.textContent = message || "";
   setTimeout(() => $("#password").focus(), 50);
 }
-
 function showApp() {
   $("#viewLogin").hidden = true;
   $("#topbar").hidden = false;
   $("#app").hidden = false;
   startPolling();
 }
+const expired = () => showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
 
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -94,21 +101,20 @@ $("#loginForm").addEventListener("submit", async (e) => {
     btn.disabled = false;
   }
 });
-
 $("#btnLogout").addEventListener("click", () => showLogin());
 
 // ---------- tabs ----------
 function selectTab(name) {
   const stage = name === "stage";
   $("#tabStage").setAttribute("aria-selected", String(stage));
-  $("#tabQuestions").setAttribute("aria-selected", String(!stage));
+  $("#tabSettings").setAttribute("aria-selected", String(!stage));
   $("#viewStage").hidden = !stage;
-  $("#viewQuestions").hidden = stage;
+  $("#viewSettings").hidden = stage;
   if (stage) requestAnimationFrame(() => cloud.layout());
 }
 $("#tabStage").addEventListener("click", () => selectTab("stage"));
-$("#tabQuestions").addEventListener("click", () => selectTab("questions"));
-$("#btnGoQuestions").addEventListener("click", () => selectTab("questions"));
+$("#tabSettings").addEventListener("click", () => selectTab("settings"));
+$("#btnGoSettings").addEventListener("click", () => selectTab("settings"));
 
 // ---------- polling ----------
 function startPolling() {
@@ -123,15 +129,17 @@ async function poll() {
   clearTimeout(pollTimer);
   if (!token) return;
   const sent = Date.now();
+  const version = saveVersion;
   try {
     const res = await api("/admin/overview", { token });
     clock.sync(res.state.serverNow, sent, Date.now());
     data = res;
     $("#netError").hidden = true;
-    if (!savingQuestions) setQuestions(res.questions);
+    // Skip project data that was read before our latest save finished.
+    if (!saving && version === saveVersion) setProjects(res.projects, res.activeProjectId);
     render();
   } catch (err) {
-    if (err.status === 401) return showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
+    if (err.status === 401) return expired();
     $("#netError").textContent = err.message;
     $("#netError").hidden = false;
   }
@@ -145,7 +153,7 @@ async function control(action, extra = {}) {
   try {
     await api("/admin/control", { method: "POST", token, body: { action, ...extra } });
   } catch (err) {
-    if (err.status === 401) return showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
+    if (err.status === 401) return expired();
     $("#netError").textContent = err.message;
     $("#netError").hidden = false;
   }
@@ -162,12 +170,11 @@ function localPhase() {
   if (now <= s.endsAt) return "live";
   return "closed";
 }
-
 const PHASE_TEXT = {
-  lobby: "ล็อบบี้",
+  lobby: "ห้องรอ",
   countdown: "กำลังเริ่ม",
   live: "กำลังรับคำตอบ",
-  closed: "ปิดรับคำตอบ",
+  closed: "แสดงผลลัพธ์",
   ended: "จบเกม",
 };
 
@@ -183,30 +190,9 @@ function render() {
   $("#stageLobby").hidden = phase !== "lobby";
   $("#stageLive").hidden = !inQuestion;
   $("#stageEnded").hidden = phase !== "ended";
-  if (!inQuestion && document.body.classList.contains("present")) setPresent(false);
 
-  // lobby
-  const players = data.players;
-  pop($("#playerCount"), players.length);
-  const pids = new Set(players.map((p) => p.pid));
-  const namesBox = $("#playerNames");
-  if ([...renderedPids].some((p) => !pids.has(p))) {
-    namesBox.textContent = "";
-    renderedPids = new Set();
-  }
-  for (const p of players) {
-    if (!renderedPids.has(p.pid)) {
-      namesBox.append(el("span", { text: p.name }));
-      renderedPids.add(p.pid);
-    }
-  }
-  const qn = questions.length;
-  $("#lobbyInfo").textContent = qn
-    ? `ชุดคำถามมี ${qn} ข้อ เกมจะเริ่มเมื่อกด “เริ่มเกม” เท่านั้น ผู้เล่นจะเห็นคำถามพร้อมกัน`
-    : "ยังไม่มีคำถาม เพิ่มคำถามในแท็บ “คำถาม” ก่อนเริ่มเกม";
-  $("#btnStart").disabled = !qn;
+  renderLobby();
 
-  // question
   if (inQuestion && s.question) {
     const q = s.question;
     if (q.id !== lastQid) {
@@ -217,15 +203,14 @@ function render() {
       maps.local = {};
       tableSig = "";
       seenRows = new Set();
-      retrigger($(".qband"), "rise");
       clusterState.backoffUntil = 0;
       $("#aiNote").textContent = "";
+      retrigger($(".qband"), "rise");
     }
-    $("#qNo").textContent = `ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
+    $("#qNo").textContent = `${s.projectName ? s.projectName + " · " : ""}ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
     $("#qText").textContent = q.text;
     const last = s.qIndex + 1 >= s.total;
-    $("#btnNext").textContent = last ? "จบเกม" : "ข้อถัดไป";
-    $("#btnClose").disabled = phase === "closed";
+    $("#btnNext").textContent = last ? "จบเกม" : s.advance === "auto" ? "ข้ามไปข้อถัดไป" : "ข้อถัดไป";
     $("#btnAI").hidden = q.type === "choice";
     $("#thGroup").hidden = q.type === "choice" || !aiOn;
     cloud.setEmptyText(phase === "closed" ? "ไม่มีคำตอบสำหรับข้อนี้" : "รอคำตอบแรก…");
@@ -233,7 +218,7 @@ function render() {
     const res = data.results;
     if (res && res.questionId === q.id) {
       maps.server = { ...maps.server, ...res.map };
-      renderResults(q, res.answers, players.length);
+      renderResults(q, res.answers, data.players.length);
       maybeCluster(q, res.answers);
     }
   }
@@ -243,11 +228,40 @@ function render() {
     setTimeout(() => confetti({ count: 160, power: 1.2 }), 200);
   } else if (phase !== "ended") celebratedEnd = false;
   if (phase === "ended") {
-    $("#endedInfo").textContent = `มีผู้เล่นทั้งหมด ${players.length} คน`;
+    $("#endedInfo").textContent = `${s.projectName ? "โปรเจกต์ " + s.projectName + " · " : ""}ผู้เข้าร่วม ${data.players.length} คน`;
   }
+  if (!inQuestion && phase !== "lobby" && document.body.classList.contains("present")) setPresent(false);
 
   updateMusic(phase);
   tick();
+}
+
+function renderLobby() {
+  const players = data.players;
+  pop($("#playerCount"), players.length);
+  const pids = new Set(players.map((p) => p.pid));
+  const box = $("#playerNames");
+  if ([...renderedPids].some((p) => !pids.has(p))) {
+    box.textContent = "";
+    renderedPids = new Set();
+  }
+  for (const p of players) {
+    if (!renderedPids.has(p.pid)) {
+      box.append(el("span", { text: p.name }));
+      renderedPids.add(p.pid);
+    }
+  }
+  $("#namesEmpty").hidden = players.length > 0;
+  const active = projects.find((p) => p.id === activeProjectId);
+  const pill = $("#lobbyProject");
+  pill.textContent = "";
+  if (active) {
+    pill.append(
+      el("span", { text: active.name }),
+      el("small", { text: `${active.questions.length} คำถาม · ${ADVANCE_LABEL[active.settings.advance]}` }),
+    );
+  }
+  $("#btnStart").disabled = !active || !active.questions.length;
 }
 
 function effectiveMap() {
@@ -290,13 +304,12 @@ function buildWords(q, answers) {
 function renderResults(q, answers, playerCount) {
   const { words, labelOf } = buildWords(q, answers);
   cloud.update(words);
-  $("#answeredCount").textContent = `ตอบแล้ว ${answers.length} จาก ${playerCount} คน`;
+  const countText = `ตอบแล้ว ${answers.length} จาก ${playerCount} คน`;
+  $("#answeredCount").textContent = countText;
+  $("#answeredBadge").textContent = countText;
 
   const showGroup = q.type !== "choice" && aiOn;
-  const rows = [...answers].reverse().map((a) => {
-    const labels = [...new Set(a.values.map(labelOf))];
-    return { a, labels };
-  });
+  const rows = [...answers].reverse().map((a) => ({ a, labels: [...new Set(a.values.map(labelOf))] }));
   const sig = JSON.stringify([showGroup, rows.map((r) => [r.a.pid, r.a.values, r.labels])]);
   if (sig === tableSig) return;
   tableSig = sig;
@@ -332,8 +345,7 @@ async function maybeCluster(q, answers) {
   const now = Date.now();
   if (clusterState.busy || now - clusterState.last < 4000 || now < clusterState.backoffUntil) return;
   const map = maps.server;
-  const unmapped = answers.some((a) => a.values.some((v) => !map[norm(v)]));
-  if (!unmapped) return;
+  if (!answers.some((a) => a.values.some((v) => !map[norm(v)]))) return;
   clusterState.busy = true;
   clusterState.last = now;
   const qid = q.id;
@@ -357,7 +369,7 @@ async function maybeCluster(q, answers) {
     }
     render();
   } catch (err) {
-    if (err.status === 401) return showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
+    if (err.status === 401) return expired();
     clusterState.backoffUntil = Date.now() + 15000;
   } finally {
     clusterState.busy = false;
@@ -371,13 +383,31 @@ function tick() {
   const s = data.state;
   if (!["countdown", "live", "closed"].includes(phase)) return;
   const total = s.question ? s.question.seconds : 1;
-  const cd = $("#countdown");
-  cd.hidden = phase !== "countdown";
-  if (phase === "countdown") pop($("#countNum"), Math.max(1, secondsLeft(s.startedAt)));
-  const left = phase === "countdown" ? total : secondsLeft(s.endsAt);
-  $("#clockNum").textContent = phase === "closed" ? "0" : left;
-  $("#clockLabel").textContent = phase === "closed" ? "หมดเวลา" : "วินาที";
-  const low = phase === "live" && left <= 10;
+  $("#countdown").hidden = phase !== "countdown";
+  // The question stays hidden until the countdown ends.
+  $("#qText").classList.toggle("veiled", phase === "countdown");
+  if (phase === "countdown") {
+    $("#countLabel").textContent = `คำถามข้อที่ ${s.qIndex + 1} กำลังจะเริ่ม`;
+    pop($("#countNum"), Math.max(1, secondsLeft(s.startedAt)));
+  }
+  let num;
+  let label;
+  if (phase === "countdown") {
+    num = total;
+    label = "วินาที";
+  } else if (phase === "live") {
+    num = secondsLeft(s.endsAt);
+    label = "วินาที";
+  } else if (s.nextAt) {
+    num = secondsLeft(s.nextAt);
+    label = s.qIndex + 1 >= s.total ? "วินาทีก่อนจบเกม" : "วินาทีก่อนข้อถัดไป";
+  } else {
+    num = 0;
+    label = "หมดเวลา";
+  }
+  $("#clockNum").textContent = num;
+  $("#clockLabel").textContent = label;
+  const low = phase === "live" && num <= 10;
   $("#clock").classList.toggle("low", low);
   $("#timebar").classList.toggle("low", low);
   const frac = phase === "countdown" ? 1 : Math.max(0, Math.min(1, (s.endsAt - clock.now()) / (total * 1000)));
@@ -387,14 +417,20 @@ function tick() {
   updateMusic(phase);
 }
 let lastTickPhase = null;
+let fastPollFor = 0;
 setInterval(() => {
   const p = localPhase();
   if (p !== lastTickPhase) {
     lastTickPhase = p;
     if (data) render();
-    // Pull fresh results right after the timer runs out.
     if (p === "closed" && token) setTimeout(poll, 600);
   } else tick();
+  // Auto mode: ask the server right when the results pause is over.
+  if (data && data.state.nextAt && clock.now() > data.state.nextAt + 200 && token && fastPollFor !== data.state.nextAt) {
+    fastPollFor = data.state.nextAt;
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, 100);
+  }
 }, 250);
 
 // ---------- music ----------
@@ -417,12 +453,6 @@ $("#btnStart").addEventListener("click", () => {
 $("#btnNext").addEventListener("click", () => control("next"));
 $("#btnClose").addEventListener("click", () => control("close"));
 $("#btnExtend").addEventListener("click", () => control("extend", { seconds: 15 }));
-$("#btnLobby").addEventListener("click", () => control("lobby"));
-$("#btnEndedLobby").addEventListener("click", () => control("lobby"));
-$("#btnRestart").addEventListener("click", () => {
-  music.unlock();
-  control("start");
-});
 
 function twoStep(btn, label, confirmLabel, action) {
   let armed = null;
@@ -444,11 +474,15 @@ function twoStep(btn, label, confirmLabel, action) {
     }, 4000);
   });
 }
-twoStep($("#btnReset"), "ล้างผู้เล่นและคำตอบทั้งหมด", "แตะอีกครั้งเพื่อยืนยันการล้าง", () => {
+const stopGame = () => {
   renderedPids = new Set();
   $("#playerNames").textContent = "";
-  control("reset");
-});
+  if (document.body.classList.contains("present")) setPresent(false);
+  control("stop");
+};
+twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
+twoStep($("#btnEndedStop"), "หยุดเกมและล้างข้อมูล", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
+twoStep($("#btnClearLobby"), "ล้างรายชื่อผู้เข้าร่วม", "แตะอีกครั้งเพื่อล้าง", stopGame);
 
 function setToggle(btn, on) {
   btn.classList.toggle("on", on);
@@ -461,8 +495,8 @@ $("#btnAI").addEventListener("click", () => {
   setToggle($("#btnAI"), aiOn);
   tableSig = "";
   cloud.sig = "";
-  if (!aiOn) $("#aiNote").textContent = "ปิด AI แล้ว ระบบนับเฉพาะคำที่เขียนเหมือนกันทุกตัวอักษร";
-  else $("#aiNote").textContent = "";
+  $("#aiNote").classList.remove("err");
+  $("#aiNote").textContent = aiOn ? "" : "ปิด AI แล้ว ระบบนับเฉพาะคำที่เขียนเหมือนกันทุกตัวอักษร";
   render();
 });
 $("#btnMusic").addEventListener("click", () => {
@@ -490,6 +524,7 @@ document.addEventListener("keydown", (e) => {
 function setPresent(on) {
   document.body.classList.toggle("present", on);
   $("#btnPresent").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
+  $("#btnPresentLobby").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
   try {
     if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
     if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
@@ -498,21 +533,184 @@ function setPresent(on) {
   }
   setTimeout(() => cloud.layout(), 300);
 }
-$("#btnPresent").addEventListener("click", () => setPresent(!document.body.classList.contains("present")));
+const togglePresent = () => setPresent(!document.body.classList.contains("present"));
+$("#btnPresent").addEventListener("click", togglePresent);
+$("#btnPresentLobby").addEventListener("click", togglePresent);
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && document.body.classList.contains("present")) setPresent(false);
 });
 
-// ---------- question manager ----------
-function setQuestions(list) {
-  const sig = JSON.stringify(list);
-  if (sig === questionsSig) return;
-  questionsSig = sig;
-  questions = list;
+// ================= settings: projects =================
+function setProjects(list, activeId) {
+  const sig = JSON.stringify([list, activeId]);
+  if (sig === projectsSig) return;
+  projectsSig = sig;
+  projects = list;
+  activeProjectId = activeId;
+  if (!projects.some((p) => p.id === selectedId)) selectedId = activeId;
+  renderSettings();
+}
+
+const selected = () => projects.find((p) => p.id === selectedId) || projects[0];
+const gameRunning = () => data && !["lobby", "ended"].includes(data.state.phase);
+
+function note(text, isError) {
+  const n = $("#projectNote");
+  n.textContent = text;
+  n.style.color = isError ? "var(--warn)" : "";
+}
+
+async function saveProjects(list, activeId, okText) {
+  saving++;
+  saveVersion++;
+  const prev = [projects, activeProjectId];
+  projects = list;
+  activeProjectId = activeId;
+  renderSettings();
+  try {
+    const res = await api("/admin/projects", { method: "PUT", token, body: { projects: list, activeProjectId: activeId } });
+    saving--;
+    saveVersion++;
+    projectsSig = "";
+    setProjects(res.projects, res.activeProjectId);
+    note(`${okText} · บันทึกเมื่อ ${fmtTime(Date.now())}`);
+    $("#savedNote").textContent = `${okText} · บันทึกเมื่อ ${fmtTime(Date.now())}`;
+    if (data) renderLobby();
+    return true;
+  } catch (err) {
+    saving--;
+    if (err.status === 401) {
+      expired();
+      return false;
+    }
+    [projects, activeProjectId] = prev;
+    projectsSig = "";
+    renderSettings();
+    note(err.message, true);
+    $("#formError").textContent = err.message;
+    $("#formError").hidden = false;
+    return false;
+  }
+}
+
+function updateSelected(patch, okText) {
+  const p = selected();
+  const list = projects.map((x) => (x.id === p.id ? { ...x, ...patch } : x));
+  return saveProjects(list, activeProjectId, okText);
+}
+
+function renderSettings() {
+  const sel = selected();
+  if (!sel) return;
+  selectedId = sel.id;
+  storage.set("wc-selected-project", selectedId);
+
+  // project list
+  const box = $("#projectList");
+  box.textContent = "";
+  for (const p of projects) {
+    const item = el(
+      "button",
+      { type: "button", class: "pitem", role: "option", "aria-selected": String(p.id === selectedId) },
+      el("b", { text: p.name }),
+      el(
+        "small",
+        {},
+        `${p.questions.length} คำถาม · ${ADVANCE_LABEL[p.settings.advance]}`,
+        p.id === activeProjectId ? el("span", { class: "live-tag", text: " · ใช้เล่นอยู่" }) : null,
+      ),
+    );
+    item.addEventListener("click", () => {
+      selectedId = p.id;
+      if (editingQid) resetForm(false);
+      renderSettings();
+    });
+    box.append(item);
+  }
+
+  // project form
+  const nameInput = $("#pName");
+  if (document.activeElement !== nameInput) nameInput.value = sel.name;
+  document.querySelector(`input[name="pAdvance"][value="${sel.settings.advance}"]`).checked = true;
+  $("#pResultWrap").hidden = sel.settings.advance !== "auto";
+  if (document.activeElement !== $("#pResult")) $("#pResult").value = sel.settings.resultSeconds;
+  const isActive = sel.id === activeProjectId;
+  $("#activeBadge").hidden = !isActive;
+  $("#btnUseProject").hidden = isActive;
+  $("#btnUseProject").disabled = gameRunning();
+  $("#btnUseProject").title = gameRunning() ? "กดหยุดเกมก่อนเปลี่ยนโปรเจกต์" : "";
+  $("#btnDelProject").disabled = projects.length <= 1 || (isActive && gameRunning());
+
   renderQList();
 }
 
+$("#pName").addEventListener("change", () => {
+  const name = $("#pName").value.trim();
+  if (!name) {
+    $("#pName").value = selected().name;
+    return;
+  }
+  updateSelected({ name }, "เปลี่ยนชื่อโปรเจกต์แล้ว");
+});
+document.querySelectorAll('input[name="pAdvance"]').forEach((r) =>
+  r.addEventListener("change", () => {
+    const sel = selected();
+    updateSelected({ settings: { ...sel.settings, advance: r.value } }, `ตั้งเป็น “${ADVANCE_LABEL[r.value]}” แล้ว`);
+  }),
+);
+$("#pResult").addEventListener("change", () => {
+  const sel = selected();
+  const v = Math.min(120, Math.max(3, Math.round(Number($("#pResult").value) || 10)));
+  $("#pResult").value = v;
+  updateSelected({ settings: { ...sel.settings, resultSeconds: v } }, "บันทึกเวลาแสดงผลแล้ว");
+});
+$("#btnUseProject").addEventListener("click", () => {
+  saveProjects(projects, selected().id, `ใช้ “${selected().name}” ในเกมแล้ว`);
+});
+$("#btnNewProject").addEventListener("click", async () => {
+  const p = { name: `โปรเจกต์ใหม่ ${projects.length + 1}`, questions: [], settings: { advance: "manual", resultSeconds: 10 } };
+  const before = new Set(projects.map((x) => x.id));
+  const ok = await saveProjects([...projects, p], activeProjectId, "สร้างโปรเจกต์ใหม่แล้ว");
+  if (ok) {
+    const created = projects.find((x) => !before.has(x.id));
+    if (created) {
+      selectedId = created.id;
+      renderSettings();
+      $("#pName").focus();
+      $("#pName").select();
+    }
+  }
+});
+$("#btnDupProject").addEventListener("click", async () => {
+  const src = selected();
+  const copy = {
+    name: `${src.name} (สำเนา)`.slice(0, 60),
+    questions: src.questions.map(({ id, ...q }) => q),
+    settings: { ...src.settings },
+  };
+  const before = new Set(projects.map((x) => x.id));
+  const ok = await saveProjects([...projects, copy], activeProjectId, "ทำสำเนาโปรเจกต์แล้ว");
+  if (ok) {
+    const created = projects.find((x) => !before.has(x.id));
+    if (created) {
+      selectedId = created.id;
+      renderSettings();
+    }
+  }
+});
+twoStep($("#btnDelProject"), "ลบโปรเจกต์", "ยืนยันลบโปรเจกต์", () => {
+  const sel = selected();
+  const list = projects.filter((p) => p.id !== sel.id);
+  if (!list.length) return;
+  const active = sel.id === activeProjectId ? list[0].id : activeProjectId;
+  selectedId = active;
+  saveProjects(list, active, `ลบ “${sel.name}” แล้ว`);
+});
+
+// ================= settings: questions of the selected project =================
 function renderQList() {
+  const sel = selected();
+  const questions = sel.questions;
   $("#qCount").textContent = `(${questions.length} ข้อ)`;
   const box = $("#qList");
   box.textContent = "";
@@ -530,8 +728,8 @@ function renderQList() {
     );
     const del = el("button", { class: "btn danger small", type: "button", text: "ลบ" });
     twoStep(del, "ลบ", "ยืนยันลบ", () => {
-      if (editingId === q.id) resetForm();
-      saveQuestions(questions.filter((x) => x.id !== q.id), "ลบคำถามแล้ว");
+      if (editingQid === q.id) resetForm(false);
+      updateSelected({ questions: questions.filter((x) => x.id !== q.id) }, "ลบคำถามแล้ว");
     });
     const acts = el(
       "div",
@@ -558,7 +756,7 @@ function renderQList() {
     box.append(
       el(
         "div",
-        { class: "qitem" + (editingId === q.id ? " editing" : "") },
+        { class: "qitem" + (editingQid === q.id ? " editing" : "") },
         el("span", { class: "idx", text: i + 1 }),
         el("div", {}, el("div", { class: "qt", text: q.text }), meta),
         acts,
@@ -568,38 +766,11 @@ function renderQList() {
 }
 
 function move(i, d) {
-  const list = [...questions];
+  const list = [...selected().questions];
   const j = i + d;
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
-  saveQuestions(list, "จัดลำดับใหม่แล้ว");
-}
-
-async function saveQuestions(list, okText) {
-  savingQuestions++;
-  const prev = questions;
-  questions = list;
-  renderQList();
-  try {
-    const res = await api("/admin/questions", { method: "PUT", token, body: { questions: list } });
-    questionsSig = "";
-    savingQuestions--;
-    setQuestions(res.questions);
-    $("#savedNote").textContent = `${okText} · บันทึกเมื่อ ${fmtTime(Date.now())}`;
-    if (data) render();
-    return true;
-  } catch (err) {
-    savingQuestions--;
-    if (err.status === 401) {
-      showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
-      return false;
-    }
-    questions = prev;
-    renderQList();
-    $("#formError").textContent = err.message;
-    $("#formError").hidden = false;
-    return false;
-  }
+  updateSelected({ questions: list }, "จัดลำดับใหม่แล้ว");
 }
 
 function currentType() {
@@ -613,7 +784,7 @@ function syncTypeFields() {
 document.querySelectorAll('input[name="fType"]').forEach((r) => r.addEventListener("change", syncTypeFields));
 
 function editQuestion(q) {
-  editingId = q.id;
+  editingQid = q.id;
   $("#editorTitle").textContent = "แก้ไขคำถาม";
   $("#btnSaveQ").textContent = "บันทึกการแก้ไข";
   $("#btnCancelQ").hidden = false;
@@ -628,17 +799,17 @@ function editQuestion(q) {
   $("#fText").focus();
 }
 
-function resetForm() {
-  editingId = null;
+function resetForm(rerender = true) {
+  editingQid = null;
   $("#qForm").reset();
   $("#editorTitle").textContent = "เพิ่มคำถาม";
   $("#btnSaveQ").textContent = "เพิ่มคำถาม";
   $("#btnCancelQ").hidden = true;
   $("#formError").hidden = true;
   syncTypeFields();
-  renderQList();
+  if (rerender) renderQList();
 }
-$("#btnCancelQ").addEventListener("click", resetForm);
+$("#btnCancelQ").addEventListener("click", () => resetForm());
 $("#btnNewQ").addEventListener("click", () => {
   resetForm();
   $("#fText").focus();
@@ -664,19 +835,25 @@ $("#qForm").addEventListener("submit", async (e) => {
     err.hidden = false;
     return;
   }
-  const q = {
-    id: editingId || undefined,
-    text,
-    type,
-    options: type === "choice" ? options : [],
-    seconds,
-    maxWords: Number($("#fMax").value),
-  };
-  const list = editingId ? questions.map((x) => (x.id === editingId ? { ...q, id: editingId } : x)) : [...questions, q];
-  $("#btnSaveQ").disabled = true;
-  const ok = await saveQuestions(list, editingId ? "แก้ไขคำถามแล้ว" : "เพิ่มคำถามแล้ว");
-  $("#btnSaveQ").disabled = false;
-  if (ok) resetForm();
+  const q = { text, type, options: type === "choice" ? options : [], seconds, maxWords: Number($("#fMax").value) };
+  const wasEditing = editingQid;
+  const current = selected().questions;
+  const list = wasEditing ? current.map((x) => (x.id === wasEditing ? { ...q, id: wasEditing } : x)) : [...current, q];
+  // Clear the form right away so the next question can be typed while this one saves.
+  resetForm(false);
+  const ok = await updateSelected({ questions: list }, wasEditing ? "แก้ไขคำถามแล้ว" : "เพิ่มคำถามแล้ว");
+  if (!ok && !$("#fText").value) {
+    if (wasEditing) editQuestion({ ...q, id: wasEditing });
+    else {
+      $("#fText").value = q.text;
+      document.querySelector(`input[name="fType"][value="${q.type}"]`).checked = true;
+      $("#fOptions").value = q.options.join("\n");
+      $("#fSeconds").value = q.seconds;
+      $("#fMax").value = String(q.maxWords);
+      syncTypeFields();
+    }
+    $("#formError").hidden = false;
+  }
 });
 
 // ---------- boot ----------

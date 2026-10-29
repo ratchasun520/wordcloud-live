@@ -24,7 +24,13 @@ export const LIMITS = {
   countdownMs: 3000,
   graceMs: 1500,
   tokenHours: 12,
+  maxProjects: 20,
+  projectName: 60,
+  minResultSeconds: 3,
+  maxResultSeconds: 120,
 };
+
+export const ADVANCE = ["manual", "auto"];
 
 export const TYPES = ["wordcloud", "choice", "open"];
 
@@ -69,6 +75,19 @@ export const DEFAULT_QUESTIONS = [
     options: [],
   },
 ];
+
+export const DEFAULT_SETTINGS = { advance: "manual", resultSeconds: 10 };
+
+function defaultProjects(questions) {
+  return [
+    {
+      id: "p-default",
+      name: "ระบบสุขภาพที่ยั่งยืน",
+      questions: questions || DEFAULT_QUESTIONS,
+      settings: { ...DEFAULT_SETTINGS },
+    },
+  ];
+}
 
 // ---------- text helpers (norm must match public/js/common.js) ----------
 
@@ -280,6 +299,32 @@ export function sanitizeQuestion(q) {
   };
 }
 
+export function sanitizeProject(p) {
+  if (!p || typeof p !== "object") return null;
+  const questions = [];
+  for (const raw of Array.isArray(p.questions) ? p.questions.slice(0, LIMITS.maxQuestions) : []) {
+    const q = sanitizeQuestion(raw);
+    if (!q) return null;
+    questions.push(q);
+  }
+  const ids = new Set();
+  for (const q of questions) {
+    if (ids.has(q.id)) q.id = newId("q-");
+    ids.add(q.id);
+  }
+  const s = p.settings || {};
+  const rs = Math.round(Number(s.resultSeconds));
+  return {
+    id: validId(p.id) ? p.id : newId("p-"),
+    name: clean(p.name, LIMITS.projectName) || "โปรเจกต์ใหม่",
+    questions,
+    settings: {
+      advance: ADVANCE.includes(s.advance) ? s.advance : "manual",
+      resultSeconds: Math.min(LIMITS.maxResultSeconds, Math.max(LIMITS.minResultSeconds, rs || DEFAULT_SETTINGS.resultSeconds)),
+    },
+  };
+}
+
 function validateAnswer(question, values) {
   if (!Array.isArray(values)) values = [values];
   if (question.type === "choice") {
@@ -345,18 +390,68 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     await Promise.all(blobs.map((b) => store.delete(b.key)));
   }
 
+  const freshState = () => ({
+    status: "lobby",
+    qIndex: -1,
+    question: null,
+    questions: [],
+    total: 0,
+    startedAt: 0,
+    endsAt: 0,
+    sessionId: newId("s-"),
+  });
+
+  // In "auto" mode the game moves on by itself: results stay on screen for
+  // resultSeconds, then the next question counts down. The step is computed
+  // from stored times, so concurrent readers all write the same result.
+  function autoAdvance(st, now) {
+    let next = st;
+    let changed = false;
+    while (next.status === "live" && next.advance === "auto") {
+      const nextAt = next.endsAt + (next.resultSeconds || DEFAULT_SETTINGS.resultSeconds) * 1000;
+      if (now < nextAt) break;
+      const idx = next.qIndex + 1;
+      const list = next.questions || [];
+      if (idx >= list.length) {
+        next = { ...next, status: "ended", question: null };
+      } else {
+        const q = list[idx];
+        const startedAt = nextAt + LIMITS.countdownMs;
+        next = { ...next, qIndex: idx, question: q, startedAt, endsAt: startedAt + q.seconds * 1000 };
+      }
+      changed = true;
+    }
+    return changed ? next : null;
+  }
+
   async function getState() {
     let st = await getJSON("state");
     if (!st || !st.sessionId) {
-      st = { status: "lobby", qIndex: -1, question: null, total: 0, startedAt: 0, endsAt: 0, sessionId: newId("s-") };
+      st = freshState();
       await store.setJSON("state", st);
+      return st;
+    }
+    const moved = autoAdvance(st, Date.now());
+    if (moved) {
+      await store.setJSON("state", moved);
+      return moved;
     }
     return st;
   }
 
-  async function getQuestions() {
-    const q = await getJSON("questions");
-    return Array.isArray(q) ? q : DEFAULT_QUESTIONS;
+  async function getProjects() {
+    const list = await getJSON("projects");
+    if (Array.isArray(list) && list.length) return list;
+    // First run, or data saved before projects existed: wrap the old question list.
+    const old = await getJSON("questions");
+    return defaultProjects(Array.isArray(old) ? old : null);
+  }
+
+  async function getActive() {
+    const [projects, cfg] = await Promise.all([getProjects(), getJSON("config")]);
+    const activeId = cfg && cfg.activeProjectId;
+    const project = projects.find((p) => p.id === activeId) || projects[0];
+    return { projects, project };
   }
 
   const stateView = (st, now) => ({
@@ -367,13 +462,16 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     question: publicQuestion(st.question),
     startedAt: st.startedAt,
     endsAt: st.endsAt,
+    projectName: st.projectName || null,
+    advance: st.advance || "manual",
+    nextAt: st.status === "live" && st.advance === "auto" ? st.endsAt + (st.resultSeconds || 10) * 1000 : null,
     serverNow: now,
   });
 
   async function readBody(req) {
     try {
       const text = await req.text();
-      if (text.length > 20000) return null;
+      if (text.length > 400000) return null;
       return text ? JSON.parse(text) : {};
     } catch {
       return null;
@@ -463,36 +561,42 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
   async function overview() {
     const now = Date.now();
     const st = await getState();
-    const [questions, players, res] = await Promise.all([
-      getQuestions(),
+    const [{ projects, project }, players, res] = await Promise.all([
+      getActive(),
       listJSON(`players/${st.sessionId}/`),
       results(st, st.question && st.status === "live" ? st.question.id : null),
     ]);
     players.sort((a, b) => a.joinedAt - b.joinedAt);
     return json({
       state: stateView(st, now),
-      questions,
+      projects,
+      activeProjectId: project.id,
       players: players.map((p) => ({ pid: p.pid, name: p.name, joinedAt: p.joinedAt })),
       results: res,
       aiAvailable: !!env.ANTHROPIC_API_KEY,
     });
   }
 
-  async function saveQuestions(req) {
+  async function saveProjects(req) {
     const body = await readBody(req);
-    if (!body || !Array.isArray(body.questions)) return fail(400, "ข้อมูลไม่ถูกต้อง");
-    if (body.questions.length > LIMITS.maxQuestions) return fail(400, `มีคำถามได้สูงสุด ${LIMITS.maxQuestions} ข้อ`);
+    if (!body || !Array.isArray(body.projects) || !body.projects.length) return fail(400, "ต้องมีอย่างน้อย 1 โปรเจกต์");
+    if (body.projects.length > LIMITS.maxProjects) return fail(400, `มีโปรเจกต์ได้สูงสุด ${LIMITS.maxProjects} โปรเจกต์`);
     const out = [];
     const ids = new Set();
-    for (const raw of body.questions) {
-      const q = sanitizeQuestion(raw);
-      if (!q) return fail(400, "มีคำถามที่ข้อมูลไม่ครบ (ตัวเลือกต้องมีอย่างน้อย 2 ข้อ)");
-      if (ids.has(q.id)) q.id = newId("q-");
-      ids.add(q.id);
-      out.push(q);
+    for (const raw of body.projects) {
+      const p = sanitizeProject(raw);
+      if (!p) return fail(400, "มีคำถามที่ข้อมูลไม่ครบ (ตัวเลือกต้องมีอย่างน้อย 2 ข้อ)");
+      if (ids.has(p.id)) p.id = newId("p-");
+      ids.add(p.id);
+      out.push(p);
     }
-    await store.setJSON("questions", out);
-    return json({ questions: out });
+    const [{ project: current }, st] = await Promise.all([getActive(), getState()]);
+    let activeId = out.some((p) => p.id === body.activeProjectId) ? body.activeProjectId : current.id;
+    if (!out.some((p) => p.id === activeId)) activeId = out[0].id;
+    if (activeId !== current.id && st.status === "live") return fail(409, "กดหยุดเกมก่อนเปลี่ยนโปรเจกต์ที่ใช้เล่น");
+    await store.setJSON("projects", out);
+    await store.setJSON("config", { activeProjectId: activeId });
+    return json({ projects: out, activeProjectId: activeId });
   }
 
   async function control(req) {
@@ -500,8 +604,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     if (!body) return fail(400, "ข้อมูลไม่ถูกต้อง");
     const now = Date.now();
     let st = await getState();
-    const questions = await getQuestions();
-    const startAt = (idx) => {
+    const startAt = (idx, questions = st.questions || []) => {
       if (idx < 0 || idx >= questions.length) {
         return { ...st, status: "ended", question: null };
       }
@@ -512,6 +615,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         status: "live",
         qIndex: idx,
         question: q,
+        questions,
         total: questions.length,
         startedAt,
         endsAt: startedAt + q.seconds * 1000,
@@ -519,10 +623,19 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     };
 
     switch (body.action) {
-      case "start":
-        if (!questions.length) return fail(400, "ยังไม่มีคำถาม");
-        st = startAt(0);
+      case "start": {
+        const { project } = await getActive();
+        if (!project.questions.length) return fail(400, "โปรเจกต์นี้ยังไม่มีคำถาม");
+        st = {
+          ...st,
+          projectId: project.id,
+          projectName: project.name,
+          advance: project.settings.advance,
+          resultSeconds: project.settings.resultSeconds,
+        };
+        st = startAt(0, project.questions);
         break;
+      }
       case "next":
         st = startAt(st.qIndex + 1);
         break;
@@ -539,12 +652,11 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         if (st.status === "live") st = { ...st, endsAt: Math.max(st.endsAt, now) + add };
         break;
       }
-      case "lobby":
-        st = { ...st, status: "lobby", question: null, qIndex: -1 };
-        break;
       case "end":
         st = { ...st, status: "ended", question: null };
         break;
+      // Stop the game: players and answers are cleared every time.
+      case "stop":
       case "reset": {
         const old = st.sessionId;
         await Promise.all([
@@ -552,7 +664,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
           deletePrefix(`answers/${old}/`),
           deletePrefix(`clusters/${old}/`),
         ]);
-        st = { status: "lobby", qIndex: -1, question: null, total: 0, startedAt: 0, endsAt: 0, sessionId: newId("s-") };
+        st = freshState();
         break;
       }
       default:
@@ -567,7 +679,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     if (!body) return fail(400, "ข้อมูลไม่ถูกต้อง");
     const st = await getState();
     const qid = body.questionId;
-    const q = st.question && st.question.id === qid ? st.question : (await getQuestions()).find((x) => x.id === qid);
+    const q = st.question && st.question.id === qid ? st.question : (st.questions || []).find((x) => x.id === qid);
     if (!q) return fail(404, "ไม่พบคำถาม");
     if (q.type === "choice") return json({ map: {}, source: "none" });
 
@@ -645,7 +757,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       if (path.startsWith("/admin/")) {
         if (!isAdmin(req)) return fail(401, "กรุณาเข้าสู่ระบบใหม่");
         if (m === "GET" && path === "/admin/overview") return await overview();
-        if (m === "PUT" && path === "/admin/questions") return await saveQuestions(req);
+        if (m === "PUT" && path === "/admin/projects") return await saveProjects(req);
         if (m === "POST" && path === "/admin/control") return await control(req);
         if (m === "POST" && path === "/admin/cluster") return await cluster(req);
       }
