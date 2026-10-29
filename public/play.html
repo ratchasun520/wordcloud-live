@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ร่วมเล่น Word Cloud สด</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="phone">
+  <div class="bar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
+      <span>Word Cloud สด</span>
+    </div>
+    <button class="btn ghost small" id="btnMusic" type="button" aria-pressed="false">เปิดเพลง</button>
+  </div>
+
+  <main>
+    <p class="notice" id="netError" hidden></p>
+
+    <!-- Join -->
+    <section class="screen" id="sJoin" hidden>
+      <h1>ใส่ชื่อเพื่อร่วมเล่น</h1>
+      <p class="muted">ชื่อนี้จะแสดงบนจอหลักคู่กับคำตอบของคุณ ผู้เล่นคนอื่นมองไม่เห็นคำตอบของคุณบนโทรศัพท์</p>
+      <form id="joinForm" class="screen" novalidate>
+        <label class="field"><span>ชื่อหรือชื่อเล่น</span>
+          <input type="text" id="name" maxlength="30" autocomplete="nickname" enterkeyhint="go" required>
+        </label>
+        <p class="notice" id="joinError" hidden></p>
+        <button class="btn big" type="submit" id="btnJoin">เข้าร่วม</button>
+      </form>
+    </section>
+
+    <!-- Waiting for start -->
+    <section class="card waiting" id="sWait" hidden>
+      <span class="hello" id="helloName"></span>
+      <h1>รอผู้ดูแลเริ่มเกม</h1>
+      <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p class="muted">คำถามจะขึ้นที่หน้านี้อัตโนมัติ ไม่ต้องรีเฟรช</p>
+      <button class="btn ghost small" type="button" id="btnRename">เปลี่ยนชื่อ</button>
+    </section>
+
+    <!-- Countdown -->
+    <section class="screen" id="sCount" hidden>
+      <p class="muted" style="text-align:center">คำถามกำลังจะมา</p>
+      <div class="bignum" id="countNum">3</div>
+    </section>
+
+    <!-- Question -->
+    <section class="screen" id="sQuestion" hidden>
+      <div class="pq">
+        <div class="top"><span class="label" id="pqNo"></span><span class="label num" id="pqLeft"></span></div>
+        <div class="timebar" id="pTimebar"><i id="pTimebarFill"></i></div>
+        <h1 id="pqText"></h1>
+      </div>
+      <form id="answerForm" class="screen" novalidate>
+        <div id="answerFields"></div>
+        <p class="notice" id="answerError" hidden></p>
+        <button class="btn big" type="submit" id="btnSend">ส่งคำตอบ</button>
+      </form>
+    </section>
+
+    <!-- Sent / closed -->
+    <section class="card waiting" id="sSent" hidden>
+      <div class="done-mark" aria-hidden="true" id="doneMark">✓</div>
+      <h1 id="sentTitle">ส่งคำตอบแล้ว</h1>
+      <div class="mine" id="mine"></div>
+      <p class="muted" id="sentNote">ดูผลรวมได้บนจอหลัก รอคำถามถัดไป</p>
+    </section>
+
+    <!-- Ended -->
+    <section class="card waiting" id="sEnded" hidden>
+      <h1>จบเกมแล้ว</h1>
+      <p class="muted">ขอบคุณที่ร่วมแบ่งปันความคิด</p>
+    </section>
+  </main>
+</div>
+<script type="module" src="/js/play.js"></script>
+</body>
+</html>

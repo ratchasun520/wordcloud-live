@@ -1,0 +1,17 @@
+{
+  "name": "wordcloud-live",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live word cloud for workshops: admin creates questions, players join by QR code, similar answers are grouped by AI.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
