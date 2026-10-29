@@ -128,6 +128,7 @@
         <div class="timebar" id="timebar"><i id="timebarFill"></i></div>
         <div class="cloudwrap">
           <div class="cloud" id="cloud" aria-label="เมฆคำตอบ"></div>
+          <div class="answer-board" id="answerBoard" aria-label="คำตอบของผู้เข้าร่วม" aria-live="polite" hidden></div>
           <div class="countdown-overlay" id="countdown" hidden>
             <div><span class="muted" id="countLabel">คำถามข้อที่ 1 กำลังจะเริ่ม</span><b id="countNum">3</b></div>
           </div>
@@ -145,14 +146,14 @@
           <button class="btn danger" type="button" id="btnStop">หยุดเกม</button>
         </div>
         <p class="ai-note hide-present" id="aiNote"></p>
-        <div class="card hide-present">
+        <div class="card answers-card hide-present" id="answersCard">
           <div class="tablehead">
-            <h2>คำตอบของผู้เล่น</h2>
+            <h2>คำตอบของผู้เล่น <span class="muted newest">ล่าสุดอยู่บนสุด</span></h2>
             <span class="muted num" id="answeredCount">ตอบแล้ว 0 จาก 0 คน</span>
           </div>
           <div class="tablewrap tablescroll">
-            <table>
-              <thead><tr><th>เวลา</th><th>ชื่อ</th><th>คำตอบ</th><th id="thGroup">กลุ่มคำ</th></tr></thead>
+            <table class="answers">
+              <thead><tr><th>ผู้ตอบ</th><th>คำตอบ</th><th id="thGroup">รวมเข้ากลุ่ม</th><th class="t">เวลา</th></tr></thead>
               <tbody id="answerRows"></tbody>
             </table>
           </div>
@@ -240,7 +241,7 @@
                 <div class="typepick">
                   <label><input type="radio" name="fType" value="wordcloud" checked><b>Word Cloud</b><small>ตอบเป็นคำสั้นๆ คำซ้ำจะใหญ่ขึ้น</small></label>
                   <label><input type="radio" name="fType" value="choice"><b>ตัวเลือก</b><small>เลือกหนึ่งข้อจากที่กำหนด</small></label>
-                  <label><input type="radio" name="fType" value="open"><b>คำตอบยาว</b><small>ตอบเป็นประโยค AI สรุปเป็นประเด็น</small></label>
+                  <label><input type="radio" name="fType" value="open"><b>คำตอบยาว</b><small>ตอบเป็นประโยค แสดงเป็นการ์ดให้อ่านบนจอหลัก</small></label>
                 </div>
               </fieldset>
               <label class="field" id="fOptionsWrap" hidden><span>ตัวเลือก (บรรทัดละ 1 ข้อ, 2–8 ข้อ)</span>

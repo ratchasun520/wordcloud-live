@@ -343,14 +343,21 @@ function render() {
       seenRows = new Set();
       if (!clusterState.aiBroken) clusterState.backoffUntil = 0;
       $("#aiNote").textContent = "";
+      boardCards.clear();
+      $("#answerBoard").textContent = "";
       retrigger($(".qband"), "rise");
     }
     $("#qNo").textContent = `ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
     $("#qText").textContent = q.text;
     const last = s.qIndex + 1 >= s.total;
     $("#btnNext").textContent = last ? "จบเกม" : s.advance === "auto" ? "ข้ามไปข้อถัดไป" : "ข้อถัดไป";
-    $("#btnAI").hidden = q.type === "choice";
-    $("#thGroup").hidden = q.type === "choice" || !aiOn;
+    const isOpen = q.type === "open";
+    $("#btnAI").hidden = q.type !== "wordcloud";
+    $("#thGroup").hidden = q.type !== "wordcloud" || !aiOn;
+    // Long answers: a scrollable board of answer cards replaces the cloud and the table.
+    $("#cloud").hidden = isOpen;
+    $("#answerBoard").hidden = !isOpen;
+    $("#answersCard").hidden = isOpen;
     cloud.setEmptyText(phase === "closed" ? "ไม่มีคำตอบสำหรับข้อนี้" : "รอคำตอบแรก…");
 
     const res = data.results;
@@ -452,47 +459,94 @@ function buildWords(q, answers) {
   return { words, labelOf };
 }
 
+// ---------- people: initials + colour, shared by the board and the table ----------
+const segmenter = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter("th", { granularity: "grapheme" }) : null;
+function initial(name) {
+  const parts = segmenter ? [...segmenter.segment(name)].map((x) => x.segment) : Array.from(name);
+  // Skip Thai leading vowels (เ แ โ ใ ไ) so "เอ" shows "อ".
+  const first = parts.find((g) => !/^[\u0E40-\u0E44]$/.test(g)) || parts[0] || "?";
+  return first.toUpperCase();
+}
+function avatar(name) {
+  return el("span", { class: "avatar", style: `--c: var(--w${(hashName(name) % 6) + 1})`, "aria-hidden": "true", text: initial(name) });
+}
+
+// ---------- long answers: card board ----------
+const boardCards = new Map();
+function renderBoard(answers) {
+  const board = $("#answerBoard");
+  if (!answers.length) {
+    if (!board.querySelector(".board-empty")) {
+      board.textContent = "";
+      board.append(el("p", { class: "board-empty", text: "รอคำตอบแรก…" }));
+    }
+    return;
+  }
+  board.querySelector(".board-empty")?.remove();
+  // Answers arrive oldest first; each new one is put at the top.
+  for (const a of answers) {
+    if (boardCards.has(a.pid)) continue;
+    const card = el(
+      "article",
+      { class: "acard enter" },
+      el("header", {}, avatar(a.name), el("b", { text: a.name }), el("time", { text: fmtTime(a.at) })),
+      el("p", { text: a.values.join(" ") }),
+    );
+    board.prepend(card);
+    boardCards.set(a.pid, card);
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove("enter")));
+  }
+}
+
 function renderResults(q, answers, playerCount) {
-  const { words, labelOf } = buildWords(q, answers);
-  cloud.update(words);
   const countText = `ตอบแล้ว ${answers.length} จาก ${playerCount} คน`;
   $("#answeredCount").textContent = countText;
   $("#answeredBadge").textContent = countText;
+  if (q.type === "open") {
+    renderBoard(answers);
+    return;
+  }
+  const { words, labelOf } = buildWords(q, answers);
+  cloud.update(words);
 
-  const showGroup = q.type !== "choice" && aiOn;
-  const rows = [...answers].reverse().map((a) => ({ a, labels: [...new Set(a.values.map(labelOf))] }));
+  const showGroup = q.type === "wordcloud" && aiOn;
+  // Only show a group when AI moved the answer into a differently written group.
+  const rows = [...answers].reverse().map((a) => ({
+    a,
+    labels: [...new Set(a.values.map((v) => [v, labelOf(v)]).filter(([v, l]) => norm(v) !== norm(l)).map(([, l]) => l))],
+  }));
   const sig = JSON.stringify([showGroup, rows.map((r) => [r.a.pid, r.a.values, r.labels])]);
   if (sig === tableSig) return;
   tableSig = sig;
   const body = $("#answerRows");
   body.textContent = "";
   if (!rows.length) {
-    body.append(el("tr", {}, el("td", { colspan: 4, class: "muted", text: "ยังไม่มีคำตอบ" })));
+    body.append(el("tr", {}, el("td", { colspan: 4, class: "empty-row", text: "ยังไม่มีคำตอบ" })));
     return;
   }
   for (const { a, labels } of rows) {
-    const groupCell = el("td", { hidden: !showGroup });
-    labels.forEach((l, i) => {
-      if (i) groupCell.append(" ");
-      groupCell.append(el("span", { class: "grp", text: l }));
-    });
+    const groupCell = el("td", { class: "g", hidden: !showGroup });
+    labels.forEach((l) => groupCell.append(el("span", { class: "grp", text: "→ " + l })));
+    if (!labels.length) groupCell.append(el("span", { class: "muted", text: "—" }));
+    const answerCell = el("td", { class: "a" });
+    a.values.forEach((v) => answerCell.append(el("span", { class: "ans", text: v })));
     const fresh = !seenRows.has(a.pid);
     seenRows.add(a.pid);
     body.append(
       el(
         "tr",
         { class: fresh ? "row-new" : null },
-        el("td", { class: "t", text: fmtTime(a.at) }),
-        el("td", { class: "n", text: a.name }),
-        el("td", { text: a.values.join(" · ") }),
+        el("td", { class: "n" }, el("span", { class: "who" }, avatar(a.name), el("span", { text: a.name }))),
+        answerCell,
         groupCell,
+        el("td", { class: "t", text: fmtTime(a.at) }),
       ),
     );
   }
 }
 
 async function maybeCluster(q, answers) {
-  if (!aiOn || q.type === "choice") return;
+  if (!aiOn || q.type !== "wordcloud") return;
   if (clusterState.aiBroken) {
     // Key rejected earlier: group similar spellings in the browser, no more server calls.
     const known = { ...maps.local, ...maps.server };

@@ -717,7 +717,8 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     const qid = body.questionId;
     const q = st.question && st.question.id === qid ? st.question : (st.questions || []).find((x) => x.id === qid);
     if (!q) return fail(404, "ไม่พบคำถาม");
-    if (q.type === "choice") return json({ map: {}, source: "none" });
+    // Long answers are read as cards, not grouped: no AI work for them.
+    if (q.type === "choice" || q.type === "open") return json({ map: {}, source: "none" });
 
     const ckey = `clusters/${st.sessionId}/${qid}`;
     const { answers } = await results(st, qid);
