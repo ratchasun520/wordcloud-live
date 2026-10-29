@@ -8,7 +8,36 @@ const TOKEN_KEY = "wc-admin-token";
 const POLL_MS = 2000;
 const ADVANCE_LABEL = { manual: "ผู้ดูแลกดเลื่อนเอง", auto: "เลื่อนอัตโนมัติ" };
 
-let token = storage.get(TOKEN_KEY);
+// The admin must enter the password on every visit. The token lives only in this
+// tab (sessionStorage) and is kept only when the page is reloaded, so a projector
+// refresh mid-game does not log out, but opening /admin again always asks.
+const session = {
+  get() {
+    try {
+      return JSON.parse(sessionStorage.getItem(TOKEN_KEY));
+    } catch {
+      return null;
+    }
+  },
+  set(v) {
+    try {
+      sessionStorage.setItem(TOKEN_KEY, JSON.stringify(v));
+    } catch {
+      /* private mode */
+    }
+  },
+  del() {
+    try {
+      sessionStorage.removeItem(TOKEN_KEY);
+    } catch {
+      /* private mode */
+    }
+  },
+};
+storage.del(TOKEN_KEY); // tokens saved by older versions in localStorage
+const navType = (performance.getEntriesByType?.("navigation")[0] || {}).type;
+if (navType !== "reload") session.del();
+let token = session.get();
 let data = null;
 let pollTimer = null;
 let aiOn = storage.get("wc-ai") ?? true;
@@ -130,7 +159,7 @@ $("#loginVisual").addEventListener("pointermove", (e) => {
 function showLogin(message) {
   stopPolling();
   token = null;
-  storage.del(TOKEN_KEY);
+  session.del();
   document.body.classList.add("logged-out");
   $("#topbar").hidden = true;
   $("#app").hidden = true;
@@ -186,7 +215,7 @@ $("#loginForm").addEventListener("submit", async (e) => {
   try {
     const res = await api("/login", { method: "POST", body: { password: $("#password").value } });
     token = res.token;
-    storage.set(TOKEN_KEY, token);
+    session.set(token);
     $("#password").value = "";
     // Unlock animation, then into the app.
     loginCard.classList.add("unlocked", "leaving");
