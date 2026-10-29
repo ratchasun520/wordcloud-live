@@ -16,7 +16,6 @@ let musicOn = storage.get("wc-music") ?? true;
 
 // settings state
 let projects = [];
-let activeProjectId = null;
 let selectedId = storage.get("wc-selected-project");
 let projectsSig = "";
 let saving = 0;
@@ -25,37 +24,53 @@ let editingQid = null;
 
 const music = new AmbientMusic();
 const cloud = new WordCloud($("#cloud"));
+const namesCloud = new WordCloud($("#namesCloud"), { sizeFloor: 0.5 });
+namesCloud.setEmptyText("");
 const maps = { qid: null, server: {}, local: {} };
 const clusterState = { busy: false, last: 0, backoffUntil: 0 };
-let renderedPids = new Set();
 let tableSig = "";
 let lastQid = null;
 let seenRows = new Set();
 let celebratedEnd = false;
 
-// ---------- join link + QR ----------
-const joinUrl = location.origin + "/play";
-const shortUrl = joinUrl.replace(/^https?:\/\//, "");
-$("#joinUrl").textContent = shortUrl;
-$("#joinUrl2").textContent = shortUrl;
-const svg = qrSvg(joinUrl);
-$("#qrLobby").innerHTML = svg;
-$("#qrBig").innerHTML = svg;
+// ---------- join links + QR: one per project ----------
+const joinUrlFor = (projectId) => `${location.origin}/play?p=${encodeURIComponent(projectId)}`;
+const shortUrl = (u) => u.replace(/^https?:\/\//, "");
+const qrCache = new Map();
+const qrFor = (url) => {
+  if (!qrCache.has(url)) qrCache.set(url, qrSvg(url));
+  return qrCache.get(url);
+};
+let lobbyQrFor = null;
+let lobbyUrl = "";
+function setLobbyQr(projectId) {
+  if (!projectId || projectId === lobbyQrFor) return;
+  lobbyQrFor = projectId;
+  lobbyUrl = joinUrlFor(projectId);
+  $("#joinUrl").textContent = shortUrl(lobbyUrl);
+  $("#joinUrl2").textContent = shortUrl(lobbyUrl);
+  $("#qrLobby").innerHTML = qrFor(lobbyUrl);
+  $("#qrBig").innerHTML = qrFor(lobbyUrl);
+}
 
-$("#btnCopy").addEventListener("click", async () => {
-  const b = $("#btnCopy");
+async function copyText(btn, text, selectEl) {
+  const label = btn.textContent;
   try {
-    await navigator.clipboard.writeText(joinUrl);
-    b.textContent = "คัดลอกแล้ว";
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "คัดลอกแล้ว";
   } catch {
     const r = document.createRange();
-    r.selectNodeContents($("#joinUrl"));
+    r.selectNodeContents(selectEl);
     getSelection().removeAllRanges();
     getSelection().addRange(r);
-    b.textContent = "กด Ctrl+C เพื่อคัดลอก";
+    btn.textContent = "กด Ctrl+C เพื่อคัดลอก";
   }
-  setTimeout(() => (b.textContent = "คัดลอกลิงก์"), 2000);
-});
+  setTimeout(() => (btn.textContent = label), 2000);
+}
+$("#btnCopy").addEventListener("click", () => copyText($("#btnCopy"), lobbyUrl, $("#joinUrl")));
+$("#btnCopyProject").addEventListener("click", () =>
+  copyText($("#btnCopyProject"), joinUrlFor(selected().id), $("#projectLink")),
+);
 
 // Browsers only allow sound after a click, so every click also unlocks audio.
 document.addEventListener("pointerdown", () => {
@@ -135,6 +150,7 @@ function showApp() {
   $("#viewLogin").hidden = true;
   $("#topbar").hidden = false;
   $("#app").hidden = false;
+  selectTab("settings");
   startPolling();
 }
 
@@ -201,7 +217,7 @@ function selectTab(name) {
 }
 $("#tabStage").addEventListener("click", () => selectTab("stage"));
 $("#tabSettings").addEventListener("click", () => selectTab("settings"));
-$("#btnGoSettings").addEventListener("click", () => selectTab("settings"));
+$("#btnGoStage").addEventListener("click", () => selectTab("stage"));
 
 // ---------- polling ----------
 function startPolling() {
@@ -223,7 +239,7 @@ async function poll() {
     data = res;
     $("#netError").hidden = true;
     // Skip project data that was read before our latest save finished.
-    if (!saving && version === saveVersion) setProjects(res.projects, res.activeProjectId);
+    if (!saving && version === saveVersion) setProjects(res.projects);
     render();
   } catch (err) {
     if (err.status === 401) return expired();
@@ -258,7 +274,8 @@ function localPhase() {
   return "closed";
 }
 const PHASE_TEXT = {
-  lobby: "ห้องรอ",
+  idle: "ยังไม่เปิดห้อง",
+  lobby: "เปิดห้องรอผู้เข้าร่วม",
   countdown: "กำลังเริ่ม",
   live: "กำลังรับคำตอบ",
   closed: "แสดงผลลัพธ์",
@@ -274,6 +291,11 @@ function render() {
   $("#statusChip").classList.toggle("live", phase === "live" || phase === "countdown");
 
   const inQuestion = ["countdown", "live", "closed"].includes(phase);
+  const roomOpen = phase !== "idle";
+  // The main screen exists only once a project's room has been opened.
+  $("#tabStage").hidden = !roomOpen;
+  if (!roomOpen && !$("#viewStage").hidden) selectTab("settings");
+  setLobbyQr(s.projectId);
   $("#stageLobby").hidden = phase !== "lobby";
   $("#stageLive").hidden = !inQuestion;
   $("#stageEnded").hidden = phase !== "ended";
@@ -294,7 +316,7 @@ function render() {
       $("#aiNote").textContent = "";
       retrigger($(".qband"), "rise");
     }
-    $("#qNo").textContent = `${s.projectName ? s.projectName + " · " : ""}ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
+    $("#qNo").textContent = `ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
     $("#qText").textContent = q.text;
     const last = s.qIndex + 1 >= s.total;
     $("#btnNext").textContent = last ? "จบเกม" : s.advance === "auto" ? "ข้ามไปข้อถัดไป" : "ข้อถัดไป";
@@ -315,41 +337,47 @@ function render() {
     setTimeout(() => confetti({ count: 160, power: 1.2 }), 200);
   } else if (phase !== "ended") celebratedEnd = false;
   if (phase === "ended") {
-    $("#endedInfo").textContent = `${s.projectName ? "โปรเจกต์ " + s.projectName + " · " : ""}ผู้เข้าร่วม ${data.players.length} คน`;
+    $("#endedInfo").textContent = `ผู้เข้าร่วม ${data.players.length} คน`;
   }
   if (!inQuestion && phase !== "lobby" && document.body.classList.contains("present")) setPresent(false);
 
+  if (!$("#viewSettings").hidden) renderLaunch();
   updateMusic(phase);
   tick();
 }
 
+const GHOST_WORDS = ["ยินดีต้อนรับ", "สแกน QR", "ใส่ชื่อ", "ร่วมสนุก", "พร้อมไหม", "เข้าร่วมเลย", "รอคุณอยู่", "สวัสดี"];
+function hashName(t) {
+  let h = 0;
+  for (const ch of t) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return h;
+}
+let namesSig = null;
 function renderLobby() {
   const players = data.players;
   pop($("#playerCount"), players.length);
-  const pids = new Set(players.map((p) => p.pid));
-  const box = $("#playerNames");
-  if ([...renderedPids].some((p) => !pids.has(p))) {
-    box.textContent = "";
-    renderedPids = new Set();
-  }
-  for (const p of players) {
-    if (!renderedPids.has(p.pid)) {
-      box.append(el("span", { text: p.name }));
-      renderedPids.add(p.pid);
+  const sig = players.map((p) => p.pid + p.name).join("|");
+  if (sig !== namesSig) {
+    namesSig = sig;
+    const box = $("#namesCloud");
+    if (players.length) {
+      box.classList.remove("ghost");
+      // Same name twice grows a little; otherwise sizes vary gently for rhythm.
+      const counts = new Map();
+      for (const p of players) counts.set(p.name, (counts.get(p.name) || 0) + 1);
+      namesCloud.update([...counts].map(([text, n]) => ({ text, count: n * 3 + (hashName(text) % 3) })));
+    } else {
+      box.classList.add("ghost");
+      namesCloud.update(GHOST_WORDS.map((text, i) => ({ text, count: 1 + ((i * 7) % 4) })));
     }
+    const list = $("#playerNames");
+    list.textContent = "";
+    for (const p of players) list.append(el("li", { text: p.name }));
   }
   $("#namesEmpty").hidden = players.length > 0;
-  const active = projects.find((p) => p.id === activeProjectId);
-  const pill = $("#lobbyProject");
-  pill.textContent = "";
-  if (active) {
-    pill.append(
-      el("span", { text: active.name }),
-      el("small", { text: `${active.questions.length} คำถาม · ${ADVANCE_LABEL[active.settings.advance]}` }),
-    );
-  }
-  $("#btnStart").disabled = !active || !active.questions.length;
+  $("#btnStart").disabled = phaseOfData() !== "lobby";
 }
+const phaseOfData = () => (data ? localPhase() : "idle");
 
 function effectiveMap() {
   return { ...maps.local, ...maps.server };
@@ -561,15 +589,15 @@ function twoStep(btn, label, confirmLabel, action) {
     }, 4000);
   });
 }
-const stopGame = () => {
-  renderedPids = new Set();
-  $("#playerNames").textContent = "";
+const stopGame = async () => {
   if (document.body.classList.contains("present")) setPresent(false);
-  control("stop");
+  await control("stop");
+  selectTab("settings");
 };
+const clearPlayers = () => control("clear");
 twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
 twoStep($("#btnEndedStop"), "หยุดเกมและล้างข้อมูล", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
-twoStep($("#btnClearLobby"), "ล้างรายชื่อผู้เข้าร่วม", "แตะอีกครั้งเพื่อล้าง", stopGame);
+twoStep($("#btnClearLobby"), "ล้างรายชื่อผู้เข้าร่วม", "แตะอีกครั้งเพื่อล้าง", clearPlayers);
 
 function setToggle(btn, on) {
   btn.classList.toggle("on", on);
@@ -628,18 +656,18 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 // ================= settings: projects =================
-function setProjects(list, activeId) {
-  const sig = JSON.stringify([list, activeId]);
+function setProjects(list) {
+  const sig = JSON.stringify(list);
   if (sig === projectsSig) return;
   projectsSig = sig;
   projects = list;
-  activeProjectId = activeId;
-  if (!projects.some((p) => p.id === selectedId)) selectedId = activeId;
+  if (!projects.some((p) => p.id === selectedId)) selectedId = (openProjectId() || (projects[0] && projects[0].id));
   renderSettings();
 }
+const openProjectId = () => (data && data.state.phase !== "idle" ? data.state.projectId : null);
 
 const selected = () => projects.find((p) => p.id === selectedId) || projects[0];
-const gameRunning = () => data && !["lobby", "ended"].includes(data.state.phase);
+const gameRunning = () => data && ["countdown", "live", "closed"].includes(localPhase());
 
 function note(text, isError) {
   const n = $("#projectNote");
@@ -647,19 +675,18 @@ function note(text, isError) {
   n.style.color = isError ? "var(--warn)" : "";
 }
 
-async function saveProjects(list, activeId, okText) {
+async function saveProjects(list, okText) {
   saving++;
   saveVersion++;
-  const prev = [projects, activeProjectId];
+  const prev = projects;
   projects = list;
-  activeProjectId = activeId;
   renderSettings();
   try {
-    const res = await api("/admin/projects", { method: "PUT", token, body: { projects: list, activeProjectId: activeId } });
+    const res = await api("/admin/projects", { method: "PUT", token, body: { projects: list } });
     saving--;
     saveVersion++;
     projectsSig = "";
-    setProjects(res.projects, res.activeProjectId);
+    setProjects(res.projects);
     note(`${okText} · บันทึกเมื่อ ${fmtTime(Date.now())}`);
     $("#savedNote").textContent = `${okText} · บันทึกเมื่อ ${fmtTime(Date.now())}`;
     if (data) renderLobby();
@@ -670,7 +697,7 @@ async function saveProjects(list, activeId, okText) {
       expired();
       return false;
     }
-    [projects, activeProjectId] = prev;
+    projects = prev;
     projectsSig = "";
     renderSettings();
     note(err.message, true);
@@ -683,7 +710,7 @@ async function saveProjects(list, activeId, okText) {
 function updateSelected(patch, okText) {
   const p = selected();
   const list = projects.map((x) => (x.id === p.id ? { ...x, ...patch } : x));
-  return saveProjects(list, activeProjectId, okText);
+  return saveProjects(list, okText);
 }
 
 function renderSettings() {
@@ -704,7 +731,7 @@ function renderSettings() {
         "small",
         {},
         `${p.questions.length} คำถาม · ${ADVANCE_LABEL[p.settings.advance]}`,
-        p.id === activeProjectId ? el("span", { class: "live-tag", text: " · ใช้เล่นอยู่" }) : null,
+        p.id === openProjectId() ? el("span", { class: "live-tag", text: " · เปิดห้องอยู่" }) : null,
       ),
     );
     item.addEventListener("click", () => {
@@ -721,15 +748,50 @@ function renderSettings() {
   document.querySelector(`input[name="pAdvance"][value="${sel.settings.advance}"]`).checked = true;
   $("#pResultWrap").hidden = sel.settings.advance !== "auto";
   if (document.activeElement !== $("#pResult")) $("#pResult").value = sel.settings.resultSeconds;
-  const isActive = sel.id === activeProjectId;
-  $("#activeBadge").hidden = !isActive;
-  $("#btnUseProject").hidden = isActive;
-  $("#btnUseProject").disabled = gameRunning();
-  $("#btnUseProject").title = gameRunning() ? "กดหยุดเกมก่อนเปลี่ยนโปรเจกต์" : "";
-  $("#btnDelProject").disabled = projects.length <= 1 || (isActive && gameRunning());
-
+  $("#btnDelProject").disabled = projects.length <= 1 || sel.id === openProjectId();
+  renderLaunch();
   renderQList();
 }
+
+let launchSig = "";
+function renderLaunch() {
+  const sel = selected();
+  if (!sel) return;
+  const url = joinUrlFor(sel.id);
+  const openId = openProjectId();
+  const isOpen = sel.id === openId;
+  const busyOther = !!openId && !isOpen && gameRunning();
+  const sig = [sel.id, isOpen, busyOther, sel.questions.length, openId].join("|");
+  if (sig === launchSig) return;
+  launchSig = sig;
+  $("#projectQr").innerHTML = qrFor(url);
+  $("#projectLink").textContent = shortUrl(url);
+  $("#openBadge").hidden = !isOpen;
+  $("#btnOpenProject").hidden = isOpen;
+  $("#btnGoStage").hidden = !isOpen;
+  $("#btnOpenProject").disabled = busyOther || !sel.questions.length;
+  const note = $("#launchNote");
+  if (!sel.questions.length) note.textContent = "เพิ่มคำถามอย่างน้อย 1 ข้อก่อนเริ่มเกม";
+  else if (busyOther) note.textContent = "มีโปรเจกต์อื่นกำลังเล่นอยู่ กดหยุดเกมนั้นก่อน";
+  else if (isOpen) note.textContent = "ห้องนี้เปิดอยู่ ผู้เล่นสแกน QR นี้เพื่อเข้าร่วมได้";
+  else if (openId) note.textContent = "เริ่มเกมโปรเจกต์นี้จะปิดห้องที่เปิดอยู่ และล้างรายชื่อผู้เข้าร่วมเดิม";
+  else note.textContent = "ผู้เล่นสแกน QR นี้ได้ตั้งแต่ตอนนี้ และจะเข้าห้องเองเมื่อกดเริ่มเกม";
+}
+
+$("#btnOpenProject").addEventListener("click", async () => {
+  const id = selected().id;
+  music.unlock();
+  try {
+    await api("/admin/control", { method: "POST", token, body: { action: "open", projectId: id } });
+  } catch (err) {
+    if (err.status === 401) return expired();
+    note(err.message, true);
+    return;
+  }
+  launchSig = "";
+  await poll();
+  selectTab("stage");
+});
 
 $("#pName").addEventListener("change", () => {
   const name = $("#pName").value.trim();
@@ -751,13 +813,10 @@ $("#pResult").addEventListener("change", () => {
   $("#pResult").value = v;
   updateSelected({ settings: { ...sel.settings, resultSeconds: v } }, "บันทึกเวลาแสดงผลแล้ว");
 });
-$("#btnUseProject").addEventListener("click", () => {
-  saveProjects(projects, selected().id, `ใช้ “${selected().name}” ในเกมแล้ว`);
-});
 $("#btnNewProject").addEventListener("click", async () => {
   const p = { name: `โปรเจกต์ใหม่ ${projects.length + 1}`, questions: [], settings: { advance: "manual", resultSeconds: 10 } };
   const before = new Set(projects.map((x) => x.id));
-  const ok = await saveProjects([...projects, p], activeProjectId, "สร้างโปรเจกต์ใหม่แล้ว");
+  const ok = await saveProjects([...projects, p], "สร้างโปรเจกต์ใหม่แล้ว");
   if (ok) {
     const created = projects.find((x) => !before.has(x.id));
     if (created) {
@@ -776,7 +835,7 @@ $("#btnDupProject").addEventListener("click", async () => {
     settings: { ...src.settings },
   };
   const before = new Set(projects.map((x) => x.id));
-  const ok = await saveProjects([...projects, copy], activeProjectId, "ทำสำเนาโปรเจกต์แล้ว");
+  const ok = await saveProjects([...projects, copy], "ทำสำเนาโปรเจกต์แล้ว");
   if (ok) {
     const created = projects.find((x) => !before.has(x.id));
     if (created) {
@@ -789,9 +848,8 @@ twoStep($("#btnDelProject"), "ลบโปรเจกต์", "ยืนยั�
   const sel = selected();
   const list = projects.filter((p) => p.id !== sel.id);
   if (!list.length) return;
-  const active = sel.id === activeProjectId ? list[0].id : activeProjectId;
-  selectedId = active;
-  saveProjects(list, active, `ลบ “${sel.name}” แล้ว`);
+  selectedId = list[0].id;
+  saveProjects(list, `ลบ “${sel.name}” แล้ว`);
 });
 
 // ================= settings: questions of the selected project =================

@@ -28,6 +28,7 @@
     <section class="screen" id="sJoin" hidden>
       <h1>ใส่ชื่อเพื่อร่วมเล่น</h1>
       <p class="muted">ชื่อนี้จะแสดงบนจอหลักคู่กับคำตอบของคุณ ผู้เล่นคนอื่นมองไม่เห็นคำตอบของคุณบนโทรศัพท์</p>
+      <p class="join-note" id="joinNote" hidden>ผู้ดูแลยังไม่เริ่มเกม ใส่ชื่อรอไว้ได้เลย ระบบจะพาเข้าห้องให้เอง</p>
       <form id="joinForm" class="screen" novalidate>
         <label class="field"><span>ชื่อหรือชื่อเล่น</span>
           <input type="text" id="name" maxlength="30" autocomplete="nickname" enterkeyhint="go" required>
@@ -43,9 +44,9 @@
         <svg viewBox="0 0 26 26"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
       </div>
       <span class="hello" id="helloName"></span>
-      <h1>รอผู้ดูแลเริ่มเกม</h1>
+      <h1 id="waitTitle">รอผู้ดูแลเริ่มคำถาม</h1>
       <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
-      <p class="muted">คำถามจะขึ้นที่หน้านี้อัตโนมัติ ไม่ต้องรีเฟรช</p>
+      <p class="muted" id="waitNote">คำถามจะขึ้นที่หน้านี้อัตโนมัติ ไม่ต้องรีเฟรช</p>
       <button class="btn ghost small" type="button" id="btnRename">เปลี่ยนชื่อ</button>
     </section>
 

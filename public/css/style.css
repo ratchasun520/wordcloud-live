@@ -336,3 +336,4 @@ td .grp { display: inline-block; padding: 1px 8px; border-radius: 999px; backgro
 /* fullscreen stage: hide chrome */
 body.present .topbar, body.present .hide-present { display: none !important; }
 body.present .cloud { height: calc(100vh - 220px); }
+.join-note { padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 0.95rem; }

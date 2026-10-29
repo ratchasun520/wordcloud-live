@@ -21,10 +21,10 @@
     <span>Word Cloud Psycho-CU</span>
   </div>
   <nav class="tabs" role="tablist" aria-label="เมนูผู้ดูแล">
-    <button class="tab" role="tab" id="tabStage" aria-selected="true" aria-controls="viewStage">หน้าจอหลัก</button>
-    <button class="tab" role="tab" id="tabSettings" aria-selected="false" aria-controls="viewSettings">ตั้งค่าเกม</button>
+    <button class="tab" role="tab" id="tabSettings" aria-selected="true" aria-controls="viewSettings">ตั้งค่าเกม</button>
+    <button class="tab" role="tab" id="tabStage" aria-selected="false" aria-controls="viewStage" hidden>หน้าจอหลัก</button>
   </nav>
-  <span class="chip" id="statusChip"><span class="dot"></span><span id="statusText">ห้องรอ</span></span>
+  <span class="chip" id="statusChip"><span class="dot"></span><span id="statusText">ยังไม่เปิดห้อง</span></span>
   <span class="spacer"></span>
   <button class="btn ghost small" id="btnLogout" type="button">ออกจากระบบ</button>
 </header>
@@ -81,7 +81,7 @@
     <p class="notice" id="netError" hidden></p>
 
     <!-- ================= Stage ================= -->
-    <section id="viewStage" role="tabpanel" aria-labelledby="tabStage">
+    <section id="viewStage" role="tabpanel" aria-labelledby="tabStage" hidden>
 
       <!-- Waiting room: who has joined. No question is shown here. -->
       <div class="lobby" id="stageLobby">
@@ -98,13 +98,14 @@
               <span class="label">ผู้เข้าร่วมที่เข้ามาแล้ว</span>
               <div class="bigcount"><b id="playerCount">0</b><span class="muted">คน</span></div>
             </div>
-            <div class="project-pill" id="lobbyProject"></div>
+            <p class="names-empty" id="namesEmpty">รอผู้เข้าร่วมสแกน QR และใส่ชื่อ</p>
           </div>
-          <div class="names" id="playerNames" aria-live="polite"></div>
-          <p class="names-empty muted" id="namesEmpty">ยังไม่มีผู้เข้าร่วม ให้ผู้เล่นสแกน QR แล้วใส่ชื่อ</p>
+          <div class="names-wrap">
+            <div class="cloud names-cloud" id="namesCloud" aria-label="รายชื่อผู้เข้าร่วม"></div>
+            <ul class="vh" id="playerNames" aria-live="polite"></ul>
+          </div>
           <div class="startrow hide-present">
-            <button class="btn big" type="button" id="btnStart">เริ่มเกม</button>
-            <button class="btn ghost" type="button" id="btnGoSettings">ตั้งค่าเกม</button>
+            <button class="btn big" type="button" id="btnStart">เริ่มคำถาม</button>
             <span class="grow"></span>
             <button class="btn ghost" type="button" id="btnPresentLobby">เต็มจอ</button>
             <button class="btn danger small" type="button" id="btnClearLobby">ล้างรายชื่อผู้เข้าร่วม</button>
@@ -171,7 +172,7 @@
     </section>
 
     <!-- ================= Settings ================= -->
-    <section id="viewSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+    <section id="viewSettings" role="tabpanel" aria-labelledby="tabSettings">
       <div class="settings">
         <aside class="card projects">
           <div class="qhead">
@@ -188,10 +189,23 @@
                 <input type="text" id="pName" maxlength="60">
               </label>
               <div class="pform-actions">
-                <span class="badge-active" id="activeBadge" hidden>ใช้เล่นอยู่</span>
-                <button class="btn" type="button" id="btnUseProject">ใช้โปรเจกต์นี้ในเกม</button>
                 <button class="btn ghost small" type="button" id="btnDupProject">ทำสำเนา</button>
                 <button class="btn danger small" type="button" id="btnDelProject">ลบโปรเจกต์</button>
+              </div>
+            </div>
+            <div class="launch">
+              <div class="qr small" id="projectQr"></div>
+              <div class="launch-body">
+                <span class="label">QR และลิงก์ของโปรเจกต์นี้</span>
+                <div class="plink"><code id="projectLink"></code>
+                  <button class="btn ghost small" type="button" id="btnCopyProject">คัดลอกลิงก์</button>
+                </div>
+                <p class="muted launch-note" id="launchNote"></p>
+                <div class="launch-actions">
+                  <span class="badge-active" id="openBadge" hidden>เปิดห้องอยู่</span>
+                  <button class="btn big" type="button" id="btnOpenProject">เริ่มเกมโปรเจกต์นี้</button>
+                  <button class="btn" type="button" id="btnGoStage" hidden>ไปหน้าจอหลัก</button>
+                </div>
               </div>
             </div>
             <fieldset class="field mode" style="border:0;padding:0;margin:0">

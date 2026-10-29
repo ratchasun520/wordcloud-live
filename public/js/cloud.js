@@ -10,8 +10,11 @@ function hash(s) {
 }
 
 export class WordCloud {
-  constructor(el) {
+  // opts.sizeFloor (0..1): smallest word as a share of the size range, for clouds
+  // where every word should stay readable (e.g. participant names).
+  constructor(el, opts = {}) {
     this.el = el;
+    this.sizeFloor = opts.sizeFloor || 0;
     this.nodes = new Map();
     this.counts = new Map();
     this.words = [];
@@ -127,7 +130,8 @@ export class WordCloud {
     const out = [];
     const pad = 3;
     for (const w of words) {
-      const t = max === min ? (words.length === 1 ? 1 : 0.4) : (w.count - min) / (max - min);
+      const raw = max === min ? (words.length === 1 ? 1 : 0.4) : (w.count - min) / (max - min);
+      const t = this.sizeFloor + (1 - this.sizeFloor) * raw;
       const fs = Math.round(minFs + (maxFs - minFs) * Math.sqrt(t));
       this.measure.style.fontSize = fs + "px";
       this.measure.style.fontWeight = out.length < 3 ? 700 : 600;

@@ -2,10 +2,12 @@ import { $, $$, el, api, storage, clock, secondsLeft } from "./common.js";
 import { AmbientMusic } from "./music.js";
 import { pop, stagger, confetti, CHECK_SVG } from "./fx.js";
 
-const KEY = "wc-player";
+// Each project has its own link: /play?p=<projectId>
+const PROJECT = new URLSearchParams(location.search).get("p") || "";
+const KEY = "wc-player" + (PROJECT ? ":" + PROJECT : "");
 const POLL_MS = 2000;
 
-let me = storage.get(KEY) || null; // { pid, name, sessionId }
+let me = storage.get(KEY) || null; // { pid, name, sessionId } or { name, pending: true }
 let st = null; // last /state
 let formFor = null; // question key the answer form was built for
 let choice = null;
@@ -32,13 +34,19 @@ async function poll() {
   clearTimeout(pollTimer);
   const sent = Date.now();
   try {
-    const q = me && me.pid ? `?pid=${encodeURIComponent(me.pid)}` : "";
-    const res = await api("/state" + q);
+    const params = new URLSearchParams();
+    if (me && me.pid) params.set("pid", me.pid);
+    if (PROJECT) params.set("p", PROJECT);
+    const qs = params.toString();
+    const res = await api("/state" + (qs ? "?" + qs : ""));
     clock.sync(res.serverNow, sent, Date.now());
     st = res;
     netError("");
-    if (me && (me.sessionId !== res.sessionId || !res.joined)) {
-      // The admin reset the game: join again with the same name.
+    if (me && me.pending) {
+      // Name entered before the room opened: join as soon as it does.
+      if (res.phase !== "idle") await joinAs(me.name, true);
+    } else if (me && (me.sessionId !== res.sessionId || !res.joined)) {
+      // The admin stopped or cleared the game: join again with the same name.
       const name = me.name;
       me = null;
       storage.set(KEY, { name });
@@ -56,7 +64,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function localPhase() {
-  if (!st) return "lobby";
+  if (!st) return "idle";
   if (!["countdown", "live", "closed"].includes(st.phase)) return st.phase;
   const now = clock.now();
   if (now < st.startedAt) return "countdown";
@@ -67,19 +75,27 @@ function localPhase() {
 // ---------- render ----------
 function render() {
   if (!st) return;
-  if (!me || !me.pid || renaming) {
+  const phase = localPhase();
+  if (!me || (!me.pid && !me.pending) || renaming) {
     const saved = storage.get(KEY);
     if (saved && saved.name && !$("#name").value) $("#name").value = saved.name;
+    $("#joinNote").hidden = phase !== "idle";
     show("sJoin");
-    updateMusic("lobby");
+    updateMusic("idle");
     return;
   }
   $("#helloName").textContent = `สวัสดี ${me.name}`;
-  const phase = localPhase();
+  if (me.pending) {
+    $("#waitTitle").textContent = "รอผู้ดูแลเริ่มเกม";
+    $("#waitNote").textContent = "ระบบจะพาเข้าห้องให้เองเมื่อผู้ดูแลเริ่มเกม ไม่ต้องรีเฟรช";
+    return show("sWait");
+  }
+  $("#waitTitle").textContent = "รอผู้ดูแลเริ่มคำถาม";
+  $("#waitNote").textContent = "คำถามจะขึ้นที่หน้านี้อัตโนมัติ ไม่ต้องรีเฟรช";
   const q = st.question;
   updateMusic(phase);
 
-  if (phase === "lobby") return show("sWait");
+  if (phase === "lobby" || phase === "idle") return show("sWait");
   if (phase === "ended") {
     if ($("#sEnded").hidden && !celebratedEnd) {
       celebratedEnd = true;
@@ -205,6 +221,30 @@ setInterval(() => {
 }, 250);
 
 // ---------- join ----------
+async function joinAs(name, quiet) {
+  const saved = storage.get(KEY);
+  try {
+    const res = await api("/join", { method: "POST", body: { name, pid: saved && saved.pid, projectId: PROJECT || undefined } });
+    me = { pid: res.pid, name: res.name, sessionId: res.sessionId };
+    renaming = false;
+    storage.set(KEY, me);
+    return true;
+  } catch (e2) {
+    if (e2.status === 409) {
+      // Room not open yet: wait and join automatically.
+      me = { name, pending: true, pid: saved && saved.pid };
+      renaming = false;
+      storage.set(KEY, me);
+      return false;
+    }
+    if (!quiet) {
+      $("#joinError").textContent = e2.message;
+      $("#joinError").hidden = false;
+    }
+    return false;
+  }
+}
+
 $("#joinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (musicOn) music.unlock();
@@ -218,15 +258,16 @@ $("#joinForm").addEventListener("submit", async (e) => {
   err.hidden = true;
   $("#btnJoin").disabled = true;
   try {
-    const saved = storage.get(KEY);
-    const res = await api("/join", { method: "POST", body: { name, pid: saved && saved.pid } });
-    me = { pid: res.pid, name: res.name, sessionId: res.sessionId };
-    renaming = false;
-    storage.set(KEY, me);
-    await poll();
-  } catch (e2) {
-    err.textContent = e2.message;
-    err.hidden = false;
+    if (st && st.phase === "idle") {
+      const saved = storage.get(KEY);
+      me = { name, pending: true, pid: saved && saved.pid };
+      renaming = false;
+      storage.set(KEY, me);
+      render();
+    } else {
+      await joinAs(name, false);
+      await poll();
+    }
   } finally {
     $("#btnJoin").disabled = false;
   }

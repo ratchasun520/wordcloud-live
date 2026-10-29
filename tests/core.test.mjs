@@ -47,8 +47,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function useQuestions(c, questions, settings = {}) {
   const r = await c.call("PUT", "/admin/projects", {
     projects: [{ id: "p-test1", name: "ทดสอบ", questions, settings }],
-    activeProjectId: "p-test1",
   });
+  await c.call("POST", "/admin/control", { action: "open", projectId: "p-test1" });
   return { status: r.status, body: { questions: r.body.projects ? r.body.projects[0].questions : null, ...r.body } };
 }
 
@@ -238,10 +238,10 @@ test("old question list becomes the first project", async () => {
   const ov = (await c.call("GET", "/admin/overview")).body;
   assert.equal(ov.projects.length, 1);
   assert.equal(ov.projects[0].questions[0].text, "คำถามเดิม");
-  assert.equal(ov.activeProjectId, ov.projects[0].id);
+  assert.equal(ov.state.phase, "idle");
 });
 
-test("projects: switch active project only while not playing", async () => {
+test("rooms: one project open at a time, links are per project", async () => {
   const store = memoryStore();
   const c = client(createApi({ store, env: { ADMIN_PASSWORD: "pw" } }));
   await c.login("pw");
@@ -249,20 +249,42 @@ test("projects: switch active project only while not playing", async () => {
     { id: "p-aaaa1", name: "A", questions: [{ text: "qa", type: "wordcloud", seconds: 30, maxWords: 1 }] },
     { id: "p-bbbb1", name: "B", questions: [{ text: "qb", type: "wordcloud", seconds: 30, maxWords: 1 }], settings: { advance: "auto", resultSeconds: 5 } },
   ];
-  let r = await c.call("PUT", "/admin/projects", { projects, activeProjectId: "p-bbbb1" });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.projects[1].settings.advance, "auto");
+  assert.equal((await c.call("PUT", "/admin/projects", { projects })).status, 200);
+  // Nothing open yet: joining fails, start fails.
+  assert.equal((await c.call("POST", "/join", { name: "x", projectId: "p-bbbb1" }, false)).status, 409);
+  assert.equal((await c.call("POST", "/admin/control", { action: "start" })).status, 409);
+  // Open B.
+  await c.call("POST", "/admin/control", { action: "open", projectId: "p-bbbb1" });
+  assert.equal((await c.call("GET", "/state?p=p-aaaa1", null, false)).body.phase, "idle");
+  assert.equal((await c.call("GET", "/state?p=p-bbbb1", null, false)).body.phase, "lobby");
+  assert.equal((await c.call("POST", "/join", { name: "x", projectId: "p-aaaa1" }, false)).status, 409);
+  const pl = (await c.call("POST", "/join", { name: "x", projectId: "p-bbbb1" }, false)).body;
+  // Re-opening the same room keeps players; clear empties it but keeps it open.
+  await c.call("POST", "/admin/control", { action: "open", projectId: "p-bbbb1" });
+  assert.equal((await c.call("GET", "/admin/overview")).body.players.length, 1);
+  await c.call("POST", "/admin/control", { action: "clear" });
+  let ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.players.length, 0);
+  assert.equal(ov.state.phase, "lobby");
+  assert.equal(ov.state.projectId, "p-bbbb1");
+  assert.ok(pl.pid);
+  // Start B; A cannot be opened while B is playing.
   await c.call("POST", "/admin/control", { action: "start" });
-  let s = (await c.call("GET", "/state", null, false)).body;
-  assert.equal(s.projectName, "B");
+  let s = (await c.call("GET", "/state?p=p-bbbb1", null, false)).body;
   assert.equal(s.advance, "auto");
-  r = await c.call("PUT", "/admin/projects", { projects, activeProjectId: "p-aaaa1" });
-  assert.equal(r.status, 409);
-  // Editing questions of the running project is fine; the game keeps its snapshot.
-  r = await c.call("PUT", "/admin/projects", { projects: [projects[0], { ...projects[1], questions: [] }], activeProjectId: "p-bbbb1" });
-  assert.equal(r.status, 200);
+  assert.equal(s.question.text, "qb");
+  assert.equal((await c.call("POST", "/admin/control", { action: "open", projectId: "p-aaaa1" })).status, 409);
+  // Cannot delete the project whose room is open.
+  assert.equal((await c.call("PUT", "/admin/projects", { projects: [projects[0]] })).status, 409);
+  // Editing its questions is fine; the game keeps its snapshot.
+  assert.equal((await c.call("PUT", "/admin/projects", { projects: [projects[0], { ...projects[1], questions: [] }] })).status, 200);
   s = (await c.call("GET", "/state", null, false)).body;
   assert.equal(s.question.text, "qb");
+  // Stop closes the room.
+  await c.call("POST", "/admin/control", { action: "stop" });
+  ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.state.phase, "idle");
+  assert.equal(ov.state.projectId, null);
 });
 
 test("auto mode moves to the next question after the results pause", async () => {
@@ -327,7 +349,7 @@ test("stop clears players and answers", async () => {
   assert.equal((await c.call("POST", "/answer", { pid: p.pid, questionId: qid, values: ["x"] }, false)).status, 200);
   await c.call("POST", "/admin/control", { action: "stop" });
   const ov = (await c.call("GET", "/admin/overview")).body;
-  assert.equal(ov.state.phase, "lobby");
+  assert.equal(ov.state.phase, "idle");
   assert.equal(ov.players.length, 0);
   assert.equal([...store.data.keys()].filter((k) => k.startsWith("answers/") || k.startsWith("players/")).length, 0);
   assert.equal(ov.projects[0].questions.length, 1); // questions are kept

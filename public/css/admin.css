@@ -213,3 +213,40 @@ body.logged-out::before { opacity: 0.6; }
 @media (prefers-reduced-motion: reduce) {
   .lv-blobs i, .lock-ring { animation: none; }
 }
+
+/* ================= per-project launch + names cloud ================= */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; }
+.launch {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: center;
+  padding: 16px; border-radius: 14px; background: var(--accent-soft);
+}
+.qr.small { width: 148px; padding: 6px; animation: none; box-shadow: 0 10px 24px -16px var(--ink); }
+.launch-body { display: grid; gap: 10px; min-width: 0; }
+.plink { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.plink code { font-size: 0.95rem; background: var(--surface); padding: 6px 10px; border-radius: 8px; overflow-wrap: anywhere; min-width: 0; }
+.launch-note { font-size: 0.9rem; }
+.launch-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.names-wrap { position: relative; min-height: 280px; }
+.lobby .names-cloud {
+  position: absolute; inset: 0; height: auto; min-height: 0;
+  background: transparent; border: 0; border-radius: 0; overflow: visible;
+}
+.names-cloud .cloud-empty { display: none; }
+.names-cloud .cw { animation: nameFloat 5.5s ease-in-out infinite alternate; }
+.names-cloud .cw:nth-child(3n) { animation-duration: 6.5s; animation-delay: -2s; }
+.names-cloud .cw:nth-child(3n+1) { animation-duration: 4.8s; animation-delay: -3.5s; }
+.names-cloud .cw:nth-child(4n) { animation-direction: alternate-reverse; }
+@keyframes nameFloat {
+  0% { translate: 0 -5px; }
+  100% { translate: 0 6px; }
+}
+.names-cloud.ghost .cw { opacity: 0.22; filter: saturate(0.6); }
+.names-empty {
+  padding: 8px 18px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent); color: var(--ink2);
+  font-family: var(--f-display); font-size: 1.05rem; animation: floaty 3s ease-in-out infinite;
+}
+@media (max-width: 640px) {
+  .launch { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+}

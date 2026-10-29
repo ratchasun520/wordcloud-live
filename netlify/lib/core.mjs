@@ -355,6 +355,7 @@ function publicQuestion(q) {
 }
 
 export function phaseOf(state, now) {
+  if (state.status === "idle" || (state.status === "lobby" && !state.projectId)) return "idle";
   if (state.status !== "live") return state.status;
   if (now < state.startedAt) return "countdown";
   if (now <= state.endsAt) return "live";
@@ -391,7 +392,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
   }
 
   const freshState = () => ({
-    status: "lobby",
+    status: "idle",
     qIndex: -1,
     question: null,
     questions: [],
@@ -447,11 +448,13 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     return defaultProjects(Array.isArray(old) ? old : null);
   }
 
-  async function getActive() {
-    const [projects, cfg] = await Promise.all([getProjects(), getJSON("config")]);
-    const activeId = cfg && cfg.activeProjectId;
-    const project = projects.find((p) => p.id === activeId) || projects[0];
-    return { projects, project };
+  async function clearSession(st) {
+    const old = st.sessionId;
+    await Promise.all([
+      deletePrefix(`players/${old}/`),
+      deletePrefix(`answers/${old}/`),
+      deletePrefix(`clusters/${old}/`),
+    ]);
   }
 
   const stateView = (st, now) => ({
@@ -462,6 +465,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     question: publicQuestion(st.question),
     startedAt: st.startedAt,
     endsAt: st.endsAt,
+    projectId: phaseOf(st, now) === "idle" ? null : st.projectId || null,
     projectName: st.projectName || null,
     advance: st.advance || "manual",
     nextAt: st.status === "live" && st.advance === "auto" ? st.endsAt + (st.resultSeconds || 10) * 1000 : null,
@@ -498,6 +502,10 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     const now = Date.now();
     const st = await getState();
     const view = stateView(st, now);
+    const want = url.searchParams.get("p");
+    if (validId(want) && view.projectId !== want) {
+      return json({ phase: "idle", serverNow: now, joined: false, sessionId: null, question: null });
+    }
     const pid = url.searchParams.get("pid");
     let player = null;
     let answered = null;
@@ -517,6 +525,10 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     const name = clean(body.name, LIMITS.name);
     if (!name) return fail(400, "กรุณาใส่ชื่อ");
     const st = await getState();
+    const open = phaseOf(st, Date.now()) !== "idle";
+    if (!open || (validId(body.projectId) && body.projectId !== st.projectId)) {
+      return fail(409, "ผู้ดูแลยังไม่เปิดห้องนี้");
+    }
     const pid = validId(body.pid) ? body.pid : newId("p-");
     const existing = await getJSON(`players/${st.sessionId}/${pid}`);
     await store.setJSON(`players/${st.sessionId}/${pid}`, {
@@ -561,8 +573,8 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
   async function overview() {
     const now = Date.now();
     const st = await getState();
-    const [{ projects, project }, players, res] = await Promise.all([
-      getActive(),
+    const [projects, players, res] = await Promise.all([
+      getProjects(),
       listJSON(`players/${st.sessionId}/`),
       results(st, st.question && st.status === "live" ? st.question.id : null),
     ]);
@@ -570,7 +582,6 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     return json({
       state: stateView(st, now),
       projects,
-      activeProjectId: project.id,
       players: players.map((p) => ({ pid: p.pid, name: p.name, joinedAt: p.joinedAt })),
       results: res,
       aiAvailable: !!env.ANTHROPIC_API_KEY,
@@ -590,13 +601,11 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       ids.add(p.id);
       out.push(p);
     }
-    const [{ project: current }, st] = await Promise.all([getActive(), getState()]);
-    let activeId = out.some((p) => p.id === body.activeProjectId) ? body.activeProjectId : current.id;
-    if (!out.some((p) => p.id === activeId)) activeId = out[0].id;
-    if (activeId !== current.id && st.status === "live") return fail(409, "กดหยุดเกมก่อนเปลี่ยนโปรเจกต์ที่ใช้เล่น");
+    const st = await getState();
+    const openId = phaseOf(st, Date.now()) === "idle" ? null : st.projectId;
+    if (openId && !out.some((p) => p.id === openId)) return fail(409, "กดหยุดเกมก่อนลบโปรเจกต์ที่กำลังเปิดห้องอยู่");
     await store.setJSON("projects", out);
-    await store.setJSON("config", { activeProjectId: activeId });
-    return json({ projects: out, activeProjectId: activeId });
+    return json({ projects: out });
   }
 
   async function control(req) {
@@ -623,17 +632,41 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     };
 
     switch (body.action) {
+      // Open the room for one project: its QR link starts working and players gather.
+      case "open": {
+        const project = (await getProjects()).find((p) => p.id === body.projectId);
+        if (!project) return fail(404, "ไม่พบโปรเจกต์");
+        const phase = phaseOf(st, now);
+        if (["countdown", "live", "closed"].includes(phase) && st.projectId !== project.id) {
+          return fail(409, "กดหยุดเกมของโปรเจกต์ที่เล่นอยู่ก่อน");
+        }
+        if (st.projectId === project.id && phase !== "idle" && phase !== "ended") {
+          // Already open: keep the players who joined.
+          st = { ...st, projectName: project.name };
+          break;
+        }
+        await clearSession(st);
+        st = { ...freshState(), status: "lobby", projectId: project.id, projectName: project.name };
+        break;
+      }
       case "start": {
-        const { project } = await getActive();
+        if (phaseOf(st, now) !== "lobby") return fail(409, "เปิดห้องจากหน้าตั้งค่าเกมก่อน");
+        const project = (await getProjects()).find((p) => p.id === st.projectId);
+        if (!project) return fail(404, "ไม่พบโปรเจกต์");
         if (!project.questions.length) return fail(400, "โปรเจกต์นี้ยังไม่มีคำถาม");
         st = {
           ...st,
-          projectId: project.id,
           projectName: project.name,
           advance: project.settings.advance,
           resultSeconds: project.settings.resultSeconds,
         };
         st = startAt(0, project.questions);
+        break;
+      }
+      // Clear the players but keep the room open.
+      case "clear": {
+        await clearSession(st);
+        st = { ...freshState(), status: st.projectId ? "lobby" : "idle", projectId: st.projectId, projectName: st.projectName };
         break;
       }
       case "next":
@@ -658,12 +691,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       // Stop the game: players and answers are cleared every time.
       case "stop":
       case "reset": {
-        const old = st.sessionId;
-        await Promise.all([
-          deletePrefix(`players/${old}/`),
-          deletePrefix(`answers/${old}/`),
-          deletePrefix(`clusters/${old}/`),
-        ]);
+        await clearSession(st);
         st = freshState();
         break;
       }
