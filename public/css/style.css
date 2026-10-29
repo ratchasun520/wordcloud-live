@@ -189,7 +189,7 @@ textarea { min-height: 110px; resize: vertical; }
 }
 .cloud .cw {
   position: absolute; left: 0; top: 0; white-space: nowrap;
-  font-family: var(--f-display); line-height: 1.15; padding: 0.04em 0.12em;
+  font-family: var(--f-display); line-height: 1.5; padding: 0 0.14em;
   transition: transform 0.7s cubic-bezier(.2,.8,.2,1), font-size 0.7s cubic-bezier(.2,.8,.2,1), opacity 0.4s;
   will-change: transform;
 }
@@ -197,7 +197,7 @@ textarea { min-height: 110px; resize: vertical; }
 .cloud .cw.leave { opacity: 0; }
 .cloud .cw.bump { animation: bump 0.6s ease-out; }
 @keyframes bump { 40% { filter: brightness(1.35); } }
-.cloud .measure { position: absolute; visibility: hidden; left: -9999px; top: 0; white-space: nowrap; font-family: var(--f-display); line-height: 1.15; padding: 0.04em 0.12em; }
+.cloud .measure { position: absolute; visibility: hidden; left: -9999px; top: 0; white-space: nowrap; font-family: var(--f-display); line-height: 1.5; padding: 0 0.14em; }
 .cloud-empty {
   position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px;
   color: var(--ink2); font-family: var(--f-display); font-size: 1.3rem;

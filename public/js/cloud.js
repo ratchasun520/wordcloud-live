@@ -29,6 +29,11 @@ export class WordCloud {
       t = setTimeout(() => this.layout(), 120);
     });
     this.ro.observe(el);
+    if (document.fonts) {
+      const relayout = () => this.layout();
+      document.fonts.ready.then(relayout);
+      document.fonts.addEventListener?.("loadingdone", relayout);
+    }
   }
 
   setEmptyText(text) {
