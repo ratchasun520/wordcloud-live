@@ -503,8 +503,14 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     const st = await getState();
     const view = stateView(st, now);
     const want = url.searchParams.get("p");
+    // t=1: the welcome screen asks for the project's title once.
+    let projectTitle;
+    if (validId(want) && url.searchParams.get("t") === "1") {
+      const proj = (await getProjects()).find((x) => x.id === want);
+      projectTitle = proj ? proj.name : null;
+    }
     if (validId(want) && view.projectId !== want) {
-      return json({ phase: "idle", serverNow: now, joined: false, sessionId: null, question: null });
+      return json({ phase: "idle", serverNow: now, joined: false, sessionId: null, question: null, projectTitle });
     }
     const pid = url.searchParams.get("pid");
     let player = null;
@@ -516,7 +522,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         answered = a ? a.values : null;
       }
     }
-    return json({ ...view, joined: !!player, name: player ? player.name : null, answered });
+    return json({ ...view, joined: !!player, name: player ? player.name : null, answered, projectTitle });
   }
 
   async function join(req) {

@@ -13,7 +13,7 @@
 </head>
 <body>
 <div class="phone">
-  <div class="bar">
+  <div class="bar" id="topBar">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
       <span>Word Cloud Psycho-CU</span>
@@ -23,6 +23,28 @@
 
   <main>
     <p class="notice" id="netError" hidden></p>
+
+    <!-- Welcome: first thing a player sees after scanning a project's QR -->
+    <section class="welcome" id="sWelcome" hidden>
+      <div class="welcome-copy">
+        <div class="brand rise" style="--i:0">
+          <svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="9" cy="14" r="7" fill="var(--w1)"/><circle cx="17" cy="11" r="6" fill="var(--w2)" opacity=".85"/><circle cx="18" cy="18" r="4" fill="var(--w3)" opacity=".85"/></svg>
+          <span>Word Cloud Psycho-CU</span>
+        </div>
+        <h1 class="hero-title">
+          <span class="line rise" style="--i:1">ระดมความคิดเรื่อง</span>
+          <span class="line rise accent-line" style="--i:2" id="welcomeTopic">&nbsp;</span>
+        </h1>
+        <p class="muted rise" style="--i:3">ใส่ชื่อเพื่อร่วมตอบ คำตอบของทุกคนจะรวมเป็นเมฆคำบนจอหลัก</p>
+        <div class="links rise" style="--i:4">
+          <button class="btn big" type="button" id="btnWelcome">เข้าร่วมเกม</button>
+        </div>
+      </div>
+      <div class="card demo rise" style="--i:3" aria-hidden="true">
+        <div class="cloud" id="welcomeCloud"></div>
+        <div class="demo-count" id="welcomeCount"></div>
+      </div>
+    </section>
 
     <!-- Join -->
     <section class="screen" id="sJoin" hidden>

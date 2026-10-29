@@ -1,6 +1,7 @@
 import { $, $$, el, api, storage, clock, secondsLeft } from "./common.js";
 import { AmbientMusic } from "./music.js";
 import { pop, stagger, confetti, CHECK_SVG } from "./fx.js";
+import { WordCloud } from "./cloud.js";
 
 // Each project has its own link: /play?p=<projectId>
 const PROJECT = new URLSearchParams(location.search).get("p") || "";
@@ -17,11 +18,63 @@ let renaming = false;
 let musicOn = false;
 let sentKey = null;
 let celebratedEnd = false;
+let welcomed = false; // the welcome screen comes first after scanning
+let topic = null;
+let titleLoaded = false;
 const music = new AmbientMusic();
 
-const screens = ["sJoin", "sWait", "sCount", "sQuestion", "sSent", "sEnded"];
+const screens = ["sWelcome", "sJoin", "sWait", "sCount", "sQuestion", "sSent", "sEnded"];
 function show(id) {
   for (const s of screens) $("#" + s).hidden = s !== id;
+  document.querySelector(".phone").classList.toggle("welcoming", id === "sWelcome");
+  if (id === "sWelcome") welcomeDemo.start();
+  else welcomeDemo.stop();
+}
+
+// Live sample cloud on the welcome screen.
+const welcomeDemo = (() => {
+  const WORDS = [
+    ["ความยั่งยืน", 9], ["สุขภาพดี", 8], ["ความเท่าเทียม", 6], ["บุคลากร", 6], ["ป้องกันโรค", 5],
+    ["งบประมาณ", 5], ["ดิจิทัล", 4], ["ชุมชน", 4], ["ปฐมภูมิ", 3], ["สุขภาพจิต", 5], ["อสม.", 3],
+    ["ข้อมูล", 3], ["สิ่งแวดล้อม", 3], ["นวัตกรรม", 2], ["ธรรมาภิบาล", 2], ["ผู้สูงอายุ", 2], ["AI", 2],
+  ];
+  const bag = WORDS.flatMap(([w, n]) => Array(n).fill(w));
+  let cloudObj = null;
+  let timer = null;
+  let counts = new Map();
+  let votes = 0;
+  const vote = () => {
+    if (votes >= 60) {
+      counts = new Map();
+      votes = 0;
+    }
+    const w = bag[Math.floor(Math.random() * bag.length)];
+    counts.set(w, (counts.get(w) || 0) + 1);
+    votes++;
+    cloudObj.update([...counts].map(([text, count]) => ({ text, count })));
+    $("#welcomeCount").textContent = `${votes} คำตอบ`;
+  };
+  return {
+    start() {
+      if (!cloudObj) {
+        cloudObj = new WordCloud($("#welcomeCloud"));
+        cloudObj.setEmptyText("");
+        for (let i = 0; i < 18; i++) vote();
+      }
+      if (!timer && !matchMedia("(prefers-reduced-motion: reduce)").matches) timer = setInterval(vote, 1400);
+    },
+    stop() {
+      clearInterval(timer);
+      timer = null;
+    },
+  };
+})();
+
+function setTopic(text) {
+  const t = text || "หัวข้อของวันนี้";
+  if (topic === t) return;
+  topic = t;
+  $("#welcomeTopic").textContent = t;
 }
 
 function netError(msg) {
@@ -37,11 +90,14 @@ async function poll() {
     const params = new URLSearchParams();
     if (me && me.pid) params.set("pid", me.pid);
     if (PROJECT) params.set("p", PROJECT);
+    if (PROJECT && !titleLoaded) params.set("t", "1");
     const qs = params.toString();
     const res = await api("/state" + (qs ? "?" + qs : ""));
     clock.sync(res.serverNow, sent, Date.now());
     st = res;
     netError("");
+    if (res.projectTitle !== undefined) titleLoaded = true;
+    setTopic(res.projectTitle || res.projectName);
     if (me && me.pending) {
       // Name entered before the room opened: join as soon as it does.
       if (res.phase !== "idle") await joinAs(me.name, true);
@@ -76,6 +132,8 @@ function localPhase() {
 function render() {
   if (!st) return;
   const phase = localPhase();
+  const signedUp = me && (me.pid || me.pending);
+  if (!welcomed && !signedUp) return show("sWelcome");
   if (!me || (!me.pid && !me.pending) || renaming) {
     const saved = storage.get(KEY);
     if (saved && saved.name && !$("#name").value) $("#name").value = saved.name;
@@ -271,6 +329,13 @@ $("#joinForm").addEventListener("submit", async (e) => {
   } finally {
     $("#btnJoin").disabled = false;
   }
+});
+
+$("#btnWelcome").addEventListener("click", () => {
+  welcomed = true;
+  if (musicOn) music.unlock();
+  render();
+  setTimeout(() => $("#name").focus(), 60);
 });
 
 $("#btnRename").addEventListener("click", () => {
