@@ -63,42 +63,129 @@ document.addEventListener("pointerdown", () => {
 });
 
 // ---------- login ----------
+const loginCard = $("#loginForm");
+const loginDemo = (() => {
+  // A small live cloud on the login panel, so the page shows what it controls.
+  const WORDS = [
+    ["ความยั่งยืน", 9], ["สุขภาพจิต", 8], ["ความเท่าเทียม", 6], ["การวิจัย", 6], ["ชุมชน", 5],
+    ["ความเข้าใจ", 5], ["การรับฟัง", 4], ["ข้อมูล", 4], ["นวัตกรรม", 3], ["ความร่วมมือ", 4],
+    ["จิตวิทยา", 6], ["ความหวัง", 3], ["การเรียนรู้", 3], ["ความปลอดภัย", 2], ["AI", 2],
+  ];
+  const bag = WORDS.flatMap(([w, n]) => Array(n).fill(w));
+  let cloudObj = null;
+  let timer = null;
+  let counts = new Map();
+  let votes = 0;
+  const vote = () => {
+    if (votes >= 55) {
+      counts = new Map();
+      votes = 0;
+    }
+    const w = bag[Math.floor(Math.random() * bag.length)];
+    counts.set(w, (counts.get(w) || 0) + 1);
+    votes++;
+    cloudObj.update([...counts].map(([text, count]) => ({ text, count })));
+  };
+  return {
+    start() {
+      if (!cloudObj) {
+        cloudObj = new WordCloud($("#loginCloud"));
+        cloudObj.setEmptyText("");
+        for (let i = 0; i < 16; i++) vote();
+      }
+      if (!timer && !matchMedia("(prefers-reduced-motion: reduce)").matches) timer = setInterval(vote, 1500);
+    },
+    stop() {
+      clearInterval(timer);
+      timer = null;
+    },
+  };
+})();
+
+// Gentle parallax on the login panel.
+$("#loginVisual").addEventListener("pointermove", (e) => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width - 0.5;
+  const y = (e.clientY - r.top) / r.height - 0.5;
+  $(".lv-blobs").style.transform = `translate(${x * -30}px, ${y * -30}px)`;
+  $("#loginCloud").style.transform = `translate(${x * 12}px, ${y * 12}px)`;
+});
+
 function showLogin(message) {
   stopPolling();
   token = null;
   storage.del(TOKEN_KEY);
+  document.body.classList.add("logged-out");
   $("#topbar").hidden = true;
   $("#app").hidden = true;
-  $("#viewLogin").hidden = false;
+  const shell = $("#viewLogin");
+  shell.classList.remove("leaving");
+  loginCard.classList.remove("leaving", "unlocked", "shake");
+  shell.hidden = false;
   const err = $("#loginError");
   err.hidden = !message;
   err.textContent = message || "";
+  loginDemo.start();
   setTimeout(() => $("#password").focus(), 50);
 }
 function showApp() {
+  loginDemo.stop();
+  document.body.classList.remove("logged-out");
   $("#viewLogin").hidden = true;
   $("#topbar").hidden = false;
   $("#app").hidden = false;
   startPolling();
 }
+
+$("#btnShowPw").addEventListener("click", () => {
+  const input = $("#password");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("#btnShowPw").setAttribute("aria-pressed", String(show));
+  $("#btnShowPw").setAttribute("aria-label", show ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน");
+  input.focus();
+});
+const capsCheck = (e) => {
+  if (typeof e.getModifierState === "function") $("#capsNote").hidden = !e.getModifierState("CapsLock");
+};
+$("#password").addEventListener("keydown", capsCheck);
+$("#password").addEventListener("keyup", capsCheck);
 const expired = () => showLogin("หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
 
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const btn = $("#btnLogin");
-  btn.disabled = true;
-  $("#loginError").hidden = true;
+  const err = $("#loginError");
+  if (!$("#password").value) {
+    err.textContent = "กรุณาใส่รหัสผ่าน";
+    err.hidden = false;
+    retrigger(loginCard, "shake");
+    $("#password").focus();
+    return;
+  }
+  btn.classList.add("loading");
+  btn.querySelector(".lbl").textContent = "กำลังตรวจสอบ…";
+  err.hidden = true;
   try {
     const res = await api("/login", { method: "POST", body: { password: $("#password").value } });
     token = res.token;
     storage.set(TOKEN_KEY, token);
     $("#password").value = "";
-    showApp();
-  } catch (err) {
-    $("#loginError").textContent = err.message;
-    $("#loginError").hidden = false;
+    // Unlock animation, then into the app.
+    loginCard.classList.add("unlocked", "leaving");
+    $("#viewLogin").classList.add("leaving");
+    btn.querySelector(".lbl").textContent = "ยินดีต้อนรับ";
+    const wait = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 850;
+    setTimeout(showApp, wait);
+  } catch (e2) {
+    err.textContent = e2.message;
+    err.hidden = false;
+    retrigger(loginCard, "shake");
+    $("#password").select();
   } finally {
-    btn.disabled = false;
+    btn.classList.remove("loading");
+    setTimeout(() => (btn.querySelector(".lbl").textContent = "เข้าสู่ระบบ"), 900);
   }
 });
 $("#btnLogout").addEventListener("click", () => showLogin());

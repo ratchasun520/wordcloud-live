@@ -29,19 +29,54 @@
   <button class="btn ghost small" id="btnLogout" type="button">ออกจากระบบ</button>
 </header>
 
-<div class="wrap">
-  <!-- Login -->
-  <section class="card login" id="viewLogin" hidden>
-    <h1>เข้าสู่ระบบผู้ดูแล</h1>
-    <form id="loginForm" class="field" novalidate>
-      <label class="field"><span>รหัสผ่าน</span>
-        <input type="password" id="password" autocomplete="current-password" required>
-      </label>
-      <p class="notice" id="loginError" hidden></p>
-      <button class="btn big" type="submit" id="btnLogin">เข้าสู่ระบบ</button>
-    </form>
-  </section>
+<!-- Login: full-bleed split screen -->
+<section class="login-shell" id="viewLogin" hidden>
+  <div class="login-visual" id="loginVisual" aria-hidden="true">
+    <div class="lv-blobs"><i></i><i></i><i></i></div>
+    <div class="lv-grid"></div>
+    <div class="lv-brand">
+      <svg class="brand-mark" viewBox="0 0 26 26"><circle cx="9" cy="14" r="7" fill="#7fe3cf"/><circle cx="17" cy="11" r="6" fill="#a9c4ff" opacity=".9"/><circle cx="18" cy="18" r="4" fill="#ffb3cd" opacity=".9"/></svg>
+      <span>Word Cloud Psycho-CU</span>
+    </div>
+    <div class="lv-cloud cloud" id="loginCloud"></div>
+    <div class="lv-copy">
+      <h2><span class="rise" style="--i:2">ทุกเสียงในห้อง</span><span class="rise" style="--i:3">รวมเป็นภาพเดียว</span></h2>
+      <p class="rise" style="--i:4">ตั้งคำถาม เปิดให้สแกน แล้วดูคำตอบก่อตัวเป็นเมฆคำบนจอหลักแบบสด</p>
+    </div>
+  </div>
 
+  <div class="login-side">
+    <form class="login-card" id="loginForm" novalidate>
+      <div class="lock rise" style="--i:0" id="lockIcon" aria-hidden="true">
+        <span class="lock-ring"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path class="shackle" d="M8 11V7.5a4 4 0 0 1 8 0V11"/>
+          <rect x="5" y="11" width="14" height="10" rx="2.5"/>
+          <circle cx="12" cy="16" r="1.4" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <h1 class="rise" style="--i:1">เข้าสู่ระบบผู้ดูแล</h1>
+      <p class="muted rise" style="--i:2">จัดการโปรเจกต์ คำถาม และควบคุมจอหลัก</p>
+      <label class="field rise" style="--i:3"><span>รหัสผ่าน</span>
+        <span class="pw">
+          <input type="password" id="password" autocomplete="current-password" required>
+          <button type="button" class="pw-toggle" id="btnShowPw" aria-label="แสดงรหัสผ่าน" aria-pressed="false">
+            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.4 17.4 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+          </button>
+        </span>
+      </label>
+      <p class="caps" id="capsNote" hidden>Caps Lock เปิดอยู่</p>
+      <p class="notice" id="loginError" role="alert" hidden></p>
+      <button class="btn big login-btn rise" style="--i:4" type="submit" id="btnLogin">
+        <span class="spinner" aria-hidden="true"></span><span class="lbl">เข้าสู่ระบบ</span>
+      </button>
+      <a class="back-link rise" style="--i:5" href="/">กลับหน้าแรก</a>
+    </form>
+  </div>
+</section>
+
+<div class="wrap">
   <div class="container app" id="app" hidden>
     <p class="notice" id="netError" hidden></p>
 

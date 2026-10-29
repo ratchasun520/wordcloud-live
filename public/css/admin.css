@@ -73,3 +73,143 @@ body.present .app { max-width: none; }
 @media (max-width: 520px) {
   .typepick.two { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ================= login ================= */
+body.logged-out .wrap { display: none; }
+body.logged-out::before { opacity: 0.6; }
+.login-shell {
+  min-height: 100vh; min-height: 100dvh;
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+
+/* left: always-dark brand panel with a live cloud */
+.login-visual {
+  --w1: #7fe3cf; --w2: #a9c4ff; --w3: #ffb3cd; --w4: #ffd57a; --w5: #cdbfff; --w6: #9fe7b0;
+  position: relative; overflow: hidden; isolation: isolate;
+  display: grid; grid-template-rows: auto 1fr auto; gap: 12px;
+  padding-block: 32px 40px;
+  padding-left: max(40px, env(safe-area-inset-left, 0px));
+  padding-right: 40px;
+  color: #eaf7f3;
+  background: linear-gradient(150deg, #072f2a 0%, #0b5a4e 48%, #173f6b 100%);
+}
+.lv-blobs { position: absolute; inset: 0; z-index: -1; transition: transform 0.6s var(--ease-out); }
+.lv-blobs i { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; animation: drift 18s ease-in-out infinite alternate; }
+.lv-blobs i:nth-child(1) { width: 46vmax; height: 46vmax; left: -12vmax; top: -16vmax; background: #11977f; }
+.lv-blobs i:nth-child(2) { width: 34vmax; height: 34vmax; right: -10vmax; top: 20%; background: #2c5fb3; animation-duration: 22s; animation-delay: -6s; }
+.lv-blobs i:nth-child(3) { width: 28vmax; height: 28vmax; left: 20%; bottom: -14vmax; background: #a8456f; opacity: 0.4; animation-duration: 26s; animation-delay: -12s; }
+@keyframes drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vmax, 4vmax) scale(1.15); }
+  100% { transform: translate(-4vmax, 6vmax) scale(0.95); }
+}
+.lv-grid {
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+.lv-brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 600; font-size: 1.1rem; }
+.lv-brand .brand-mark { width: 30px; height: 30px; }
+.login-visual .lv-cloud {
+  height: auto; min-height: 260px; background: transparent; border: 0; border-radius: 0;
+  transition: transform 0.6s var(--ease-out);
+}
+.login-visual .cloud .cw { text-shadow: 0 2px 18px rgba(0, 0, 0, 0.25); }
+.login-visual .cloud-empty { display: none; }
+.lv-copy { display: grid; gap: 10px; max-width: min(100%, 34rem); }
+.lv-copy h2 span { text-wrap: nowrap; }
+.lv-copy h2 { font-size: clamp(2rem, 3.4vw, 3.2rem); line-height: 1.2; color: #ffffff; }
+.lv-copy h2 span { display: block; }
+.lv-copy h2 span + span { color: #7fe3cf; }
+.lv-copy p { color: rgba(234, 247, 243, 0.78); font-size: 1.05rem; }
+
+/* right: the form */
+.login-side {
+  display: grid; place-items: center;
+  padding-block: 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.login-card {
+  width: min(420px, 100%); display: grid; gap: 16px; padding: 36px 32px;
+  border-radius: 20px; border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 30px 60px -30px color-mix(in srgb, var(--ink) 35%, transparent), 0 2px 0 0 color-mix(in srgb, #fff 40%, transparent) inset;
+  animation: cardIn 0.9s var(--ease-out) both;
+}
+@keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(0.97); filter: blur(8px); } }
+.login-card h1 { font-size: clamp(1.6rem, 2.4vw, 2rem); }
+.login-card > .muted { margin-top: -8px; }
+.lock {
+  position: relative; width: 60px; height: 60px; border-radius: 18px;
+  display: grid; place-items: center; color: var(--accent-ink);
+  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #2a59a8));
+  box-shadow: 0 14px 30px -14px var(--accent);
+}
+.lock svg { width: 28px; height: 28px; overflow: visible; }
+.lock .shackle { transition: transform 0.45s var(--ease-spring); transform-origin: 16px 11px; }
+.lock-ring { position: absolute; inset: -6px; border-radius: 22px; border: 2px solid var(--accent); opacity: 0; animation: lockRing 2.8s var(--ease-out) infinite; }
+@keyframes lockRing { 0% { transform: scale(0.85); opacity: 0.7; } 100% { transform: scale(1.35); opacity: 0; } }
+
+.pw { position: relative; display: block; }
+.pw input { padding-right: 52px; min-height: 52px; font-size: 1.05rem; letter-spacing: 0.04em; }
+.pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--ink2);
+  display: grid; place-items: center; cursor: pointer; transition: background 0.2s, color 0.2s;
+}
+.pw-toggle:hover { background: var(--accent-soft); color: var(--ink); }
+.pw-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.pw-toggle svg { width: 20px; height: 20px; }
+.pw-toggle .eye-off { display: none; }
+.pw-toggle[aria-pressed="true"] .eye-open { display: none; }
+.pw-toggle[aria-pressed="true"] .eye-off { display: block; }
+.caps { font-size: 0.85rem; color: var(--w4); margin-top: -8px; }
+
+.login-btn { min-height: 54px; width: 100%; }
+.login-btn .spinner {
+  width: 18px; height: 18px; border-radius: 50%; display: none;
+  border: 2.5px solid color-mix(in srgb, var(--accent-ink) 35%, transparent); border-top-color: var(--accent-ink);
+  animation: spin 0.7s linear infinite;
+}
+.login-btn.loading .spinner { display: inline-block; }
+.login-btn.loading { pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.back-link { justify-self: center; color: var(--ink2); font-size: 0.9rem; text-decoration: none; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; }
+.back-link:hover { color: var(--accent); }
+.back-link::before { content: "← "; }
+
+.login-card.shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-8px); }
+  40%, 60% { transform: translateX(8px); }
+}
+.login-card .notice { animation: rise 0.4s var(--ease-out); }
+
+/* success: shackle opens, card lifts away */
+.login-card.unlocked .shackle { transform: translateY(-4px) rotate(-28deg); }
+.login-card.unlocked .lock { animation: lockPop 0.5s var(--ease-spring); }
+.login-card.unlocked .lock-ring { animation: none; }
+.login-card.leaving { animation: cardOut 0.55s 0.35s var(--ease-out) forwards; }
+.login-shell.leaving .login-visual { animation: fadeOut 0.6s 0.35s ease forwards; }
+@keyframes lockPop { 50% { transform: scale(1.15); } }
+@keyframes cardOut { to { opacity: 0; transform: translateY(-16px) scale(0.96); filter: blur(6px); } }
+@keyframes fadeOut { to { opacity: 0; } }
+
+@media (max-width: 900px) {
+  .login-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .login-visual { padding: 20px max(16px, env(safe-area-inset-left, 0px)) 24px; grid-template-rows: auto auto auto; }
+  .login-visual .lv-cloud { min-height: 180px; height: 180px; }
+  .lv-copy h2 { font-size: 1.6rem; }
+  .lv-copy p { font-size: 0.95rem; }
+  .login-side { padding-block: 24px 40px; align-items: start; }
+  .login-card { padding: 28px 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv-blobs i, .lock-ring { animation: none; }
+}
