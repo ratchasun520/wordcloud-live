@@ -17,6 +17,7 @@ export class WordCloud {
     this.sizeFloor = opts.sizeFloor || 0;
     this.nodes = new Map();
     this.counts = new Map();
+    this.centers = new Map(); // last centre of each word, so words stay put between updates
     this.words = [];
     this.measure = document.createElement("span");
     this.measure.className = "measure";
@@ -56,6 +57,7 @@ export class WordCloud {
     for (const n of this.nodes.values()) n.remove();
     this.nodes.clear();
     this.counts.clear();
+    this.centers.clear();
     this.words = [];
     this.sig = "";
     this.empty.hidden = false;
@@ -88,6 +90,7 @@ export class WordCloud {
       scale *= 0.86;
     }
     if (!placed) return;
+    this.centers = new Map(placed.lastCenters || []);
 
     placed.forEach((p, rank) => {
       let node = this.nodes.get(p.text);
@@ -139,9 +142,31 @@ export class WordCloud {
       const bw = this.measure.offsetWidth;
       const bh = this.measure.offsetHeight;
       if (bw > W - 8) return null;
+      const collides = (x, y) => {
+        for (const q of rects) {
+          if (x < q.x + q.w + pad && x + bw + pad > q.x && y < q.y + q.h + pad && y + bh + pad > q.y) return true;
+        }
+        return false;
+      };
+      const inside = (x, y) => x >= 4 && y >= 4 && x + bw <= W - 4 && y + bh <= H - 4;
       let found = null;
+      // Keep a word where it was if it still fits there (it may have grown).
+      const prev = this.centers.get(w.text);
+      if (prev && prev.W === W && prev.H === H) {
+        const x = prev.cx - bw / 2;
+        const y = prev.cy - bh / 2;
+        if (inside(x, y) && !collides(x, y)) found = { x, y };
+        // Grew into a neighbour: look for room close to where it was first.
+        for (let i = 1; i < 700 && !found; i++) {
+          const a2 = i * 0.35;
+          const r2 = i * 0.32;
+          const nx = prev.cx + r2 * Math.cos(a2) * 1.4 - bw / 2;
+          const ny = prev.cy + r2 * Math.sin(a2) * 0.8 - bh / 2;
+          if (inside(nx, ny) && !collides(nx, ny)) found = { x: nx, y: ny };
+        }
+      }
       const seed = (hash(w.text) % 628) / 100;
-      for (let i = 0; i < 5000; i++) {
+      for (let i = 0; i < 5000 && !found; i++) {
         const a = seed + i * 0.17;
         const r = i * 0.55;
         const x = cx + r * Math.cos(a) * (W / H > 1 ? 1.5 : 1) - bw / 2;
@@ -163,6 +188,8 @@ export class WordCloud {
         }
       }
       if (!found) return null;
+      out.lastCenters = out.lastCenters || [];
+      out.lastCenters.push([w.text, { cx: found.x + bw / 2, cy: found.y + bh / 2, W, H }]);
       rects.push({ x: found.x, y: found.y, w: bw, h: bh });
       out.push({ text: w.text, count: w.count, fs, x: Math.round(found.x), y: Math.round(found.y) });
     }

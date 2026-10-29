@@ -84,20 +84,20 @@ body.logged-out::before { opacity: 0.6; }
 
 /* left: always-dark brand panel with a live cloud */
 .login-visual {
-  --w1: #7fe3cf; --w2: #a9c4ff; --w3: #ffb3cd; --w4: #ffd57a; --w5: #cdbfff; --w6: #9fe7b0;
+  --w1: #ffb3cf; --w2: #d7c8ff; --w3: #b7d0ff; --w4: #ffe08a; --w5: #9ff0dc; --w6: #ffc2a6;
   position: relative; overflow: hidden; isolation: isolate;
   display: grid; grid-template-rows: auto 1fr auto; gap: 12px;
   padding-block: 32px 40px;
   padding-left: max(40px, env(safe-area-inset-left, 0px));
   padding-right: 40px;
-  color: #eaf7f3;
-  background: linear-gradient(150deg, #072f2a 0%, #0b5a4e 48%, #173f6b 100%);
+  color: #fff0f6;
+  background: linear-gradient(150deg, #4a0a26 0%, #9c1550 48%, #3b1e6e 100%);
 }
 .lv-blobs { position: absolute; inset: 0; z-index: -1; transition: transform 0.6s var(--ease-out); }
 .lv-blobs i { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; animation: drift 18s ease-in-out infinite alternate; }
-.lv-blobs i:nth-child(1) { width: 46vmax; height: 46vmax; left: -12vmax; top: -16vmax; background: #11977f; }
-.lv-blobs i:nth-child(2) { width: 34vmax; height: 34vmax; right: -10vmax; top: 20%; background: #2c5fb3; animation-duration: 22s; animation-delay: -6s; }
-.lv-blobs i:nth-child(3) { width: 28vmax; height: 28vmax; left: 20%; bottom: -14vmax; background: #a8456f; opacity: 0.4; animation-duration: 26s; animation-delay: -12s; }
+.lv-blobs i:nth-child(1) { width: 46vmax; height: 46vmax; left: -12vmax; top: -16vmax; background: #e0337a; }
+.lv-blobs i:nth-child(2) { width: 34vmax; height: 34vmax; right: -10vmax; top: 20%; background: #6a3fc4; animation-duration: 22s; animation-delay: -6s; }
+.lv-blobs i:nth-child(3) { width: 28vmax; height: 28vmax; left: 20%; bottom: -14vmax; background: #f59e0b; opacity: 0.3; animation-duration: 26s; animation-delay: -12s; }
 @keyframes drift {
   0% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(6vmax, 4vmax) scale(1.15); }
@@ -122,8 +122,8 @@ body.logged-out::before { opacity: 0.6; }
 .lv-copy h2 span { text-wrap: nowrap; }
 .lv-copy h2 { font-size: clamp(2rem, 3.4vw, 3.2rem); line-height: 1.2; color: #ffffff; }
 .lv-copy h2 span { display: block; }
-.lv-copy h2 span + span { color: #7fe3cf; }
-.lv-copy p { color: rgba(234, 247, 243, 0.78); font-size: 1.05rem; }
+.lv-copy h2 span + span { color: #ffb3cf; }
+.lv-copy p { color: rgba(255, 240, 246, 0.8); font-size: 1.05rem; }
 
 /* right: the form */
 .login-side {

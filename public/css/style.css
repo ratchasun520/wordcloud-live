@@ -1,22 +1,22 @@
 /* Layout: projector-first stage for the admin (question band, full-width cloud field,
    control row, answer table); single-column phone flow for players. */
 :root {
-  --bg: #eef3f1;
+  --bg: #fbf4f7;
   --surface: #ffffff;
-  --ink: #0f2e2a;
-  --ink2: #4b6560;
-  --line: #d2ddd9;
-  --accent: #0b6e5f;
+  --ink: #2a1a22;
+  --ink2: #6b5560;
+  --line: #eed9e3;
+  --accent: #c2185b;
   --accent-ink: #ffffff;
-  --accent-soft: #dcefe9;
+  --accent-soft: #fbe3ed;
   --warn: #b4421a;
   --warn-soft: #fbe7de;
-  --w1: #0b6e5f;
-  --w2: #2a59a8;
-  --w3: #b0466f;
-  --w4: #946000;
-  --w5: #6a48c0;
-  --w6: #1d7a3a;
+  --w1: #c2185b;
+  --w2: #6a3fc4;
+  --w3: #1f5fbf;
+  --w4: #a86a00;
+  --w5: #0f8a72;
+  --w6: #c2410c;
   --f-display: "Prompt", "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
   --f-body: "IBM Plex Sans Thai", "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
   --radius: 10px;
@@ -24,42 +24,42 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c1917;
-    --surface: #132522;
-    --ink: #e2efec;
-    --ink2: #9bb5b0;
-    --line: #27413c;
-    --accent: #41c3ac;
-    --accent-ink: #062520;
-    --accent-soft: #163a33;
+    --bg: #1a0f15;
+    --surface: #24161e;
+    --ink: #f6e9ef;
+    --ink2: #c3a9b6;
+    --line: #3d2733;
+    --accent: #ff6fa5;
+    --accent-ink: #2a0716;
+    --accent-soft: #3a1a2a;
     --warn: #ff9a76;
     --warn-soft: #3b2219;
-    --w1: #4fd1b9;
-    --w2: #8db4ff;
-    --w3: #ff8fb8;
+    --w1: #ff7fb0;
+    --w2: #b9a6ff;
+    --w3: #8db4ff;
     --w4: #f2c053;
-    --w5: #b9a6ff;
-    --w6: #6ad68c;
+    --w5: #5fd8be;
+    --w6: #ff9a6b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0c1917;
-  --surface: #132522;
-  --ink: #e2efec;
-  --ink2: #9bb5b0;
-  --line: #27413c;
-  --accent: #41c3ac;
-  --accent-ink: #062520;
-  --accent-soft: #163a33;
+  --bg: #1a0f15;
+  --surface: #24161e;
+  --ink: #f6e9ef;
+  --ink2: #c3a9b6;
+  --line: #3d2733;
+  --accent: #ff6fa5;
+  --accent-ink: #2a0716;
+  --accent-soft: #3a1a2a;
   --warn: #ff9a76;
   --warn-soft: #3b2219;
-  --w1: #4fd1b9;
-  --w2: #8db4ff;
-  --w3: #ff8fb8;
+  --w1: #ff7fb0;
+  --w2: #b9a6ff;
+  --w3: #8db4ff;
   --w4: #f2c053;
-  --w5: #b9a6ff;
-  --w6: #6ad68c;
+  --w5: #5fd8be;
+  --w6: #ff9a6b;
   color-scheme: dark;
 }
 

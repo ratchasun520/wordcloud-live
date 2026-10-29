@@ -29,7 +29,7 @@ export function stagger(nodes, startIndex = 0) {
 
 function palette() {
   const cs = getComputedStyle(document.documentElement);
-  return ["--w1", "--w2", "--w3", "--w4", "--w5", "--w6"].map((v) => cs.getPropertyValue(v).trim() || "#0b6e5f");
+  return ["--w1", "--w2", "--w3", "--w4", "--w5", "--w6"].map((v) => cs.getPropertyValue(v).trim() || "#c2185b");
 }
 
 // Confetti burst from a point (defaults to the top centre of the screen).
