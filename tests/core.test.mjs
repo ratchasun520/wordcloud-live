@@ -354,3 +354,42 @@ test("stop clears players and answers", async () => {
   assert.equal([...store.data.keys()].filter((k) => k.startsWith("answers/") || k.startsWith("players/")).length, 0);
   assert.equal(ov.projects[0].questions.length, 1); // questions are kept
 });
+
+test("players and answers are deleted 10 minutes after the game ends", async () => {
+  const store = memoryStore();
+  const api = createApi({ store, env: { ADMIN_PASSWORD: "pw" } });
+  const c = client(api);
+  await c.login("pw");
+  const qid = (await useQuestions(c, [{ text: "q", type: "wordcloud", seconds: 30, maxWords: 1 }])).body.questions[0].id;
+  const p = (await c.call("POST", "/join", { name: "a", projectId: "p-test1" }, false)).body;
+  await c.call("POST", "/admin/control", { action: "start" });
+  skipCountdown(store);
+  await c.call("POST", "/answer", { pid: p.pid, questionId: qid, values: ["x"] }, false);
+  await c.call("POST", "/admin/control", { action: "next" }); // past the last question -> ended
+  let ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.state.phase, "ended");
+  assert.equal(ov.players.length, 1); // still there right after the finale
+  // 11 minutes later (no browser open): the scheduled sweep clears everything.
+  const st = JSON.parse(store.data.get("state"));
+  st.endedAt = Date.now() - 11 * 60 * 1000;
+  store.data.set("state", JSON.stringify(st));
+  assert.equal(await api.sweep(), "idle");
+  assert.equal([...store.data.keys()].filter((k) => /^(players|answers|clusters)\//.test(k)).length, 0);
+  ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.projects[0].questions.length, 1); // questions are kept
+});
+
+test("a room left untouched for 12 hours is cleared", async () => {
+  const store = memoryStore();
+  const api = createApi({ store, env: { ADMIN_PASSWORD: "pw" } });
+  const c = client(api);
+  await c.login("pw");
+  await useQuestions(c, [{ text: "q", type: "wordcloud", seconds: 30, maxWords: 1 }]);
+  await c.call("POST", "/join", { name: "a", projectId: "p-test1" }, false);
+  assert.equal(await api.sweep(), "lobby");
+  const st = JSON.parse(store.data.get("state"));
+  st.updatedAt = Date.now() - 13 * 60 * 60 * 1000;
+  store.data.set("state", JSON.stringify(st));
+  assert.equal(await api.sweep(), "idle");
+  assert.equal([...store.data.keys()].filter((k) => k.startsWith("players/")).length, 0);
+});

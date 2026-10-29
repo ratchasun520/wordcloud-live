@@ -28,6 +28,9 @@ export const LIMITS = {
   projectName: 60,
   minResultSeconds: 3,
   maxResultSeconds: 120,
+  // Privacy: players and answers are deleted automatically
+  autoClearAfterEndMs: 10 * 60 * 1000, // 10 minutes after the game ends
+  autoClearIdleMs: 12 * 60 * 60 * 1000, // or 12 hours after the admin's last action
 };
 
 export const ADVANCE = ["manual", "auto"];
@@ -416,7 +419,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       const idx = next.qIndex + 1;
       const list = next.questions || [];
       if (idx >= list.length) {
-        next = { ...next, status: "ended", question: null };
+        next = { ...next, status: "ended", question: null, endedAt: nextAt };
       } else {
         const q = list[idx];
         const startedAt = nextAt + LIMITS.countdownMs;
@@ -434,12 +437,26 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       await store.setJSON("state", st);
       return st;
     }
-    const moved = autoAdvance(st, Date.now());
-    if (moved) {
-      await store.setJSON("state", moved);
-      return moved;
+    const now = Date.now();
+    const moved = autoAdvance(st, now);
+    if (moved) st = moved;
+    if (shouldAutoClear(st, now)) {
+      await clearSession(st);
+      st = freshState();
+      await store.setJSON("state", st);
+      return st;
     }
+    if (moved) await store.setJSON("state", st);
     return st;
+  }
+
+  // Delete players and answers on their own: 10 minutes after the finale,
+  // or when a room has been left untouched for 12 hours.
+  function shouldAutoClear(st, now) {
+    if (phaseOf(st, now) === "idle") return false;
+    if (st.status === "ended" && st.endedAt && now - st.endedAt > LIMITS.autoClearAfterEndMs) return true;
+    if (st.updatedAt && now - st.updatedAt > LIMITS.autoClearIdleMs) return true;
+    return false;
   }
 
   async function getProjects() {
@@ -623,7 +640,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     let st = await getState();
     const startAt = (idx, questions = st.questions || []) => {
       if (idx < 0 || idx >= questions.length) {
-        return { ...st, status: "ended", question: null };
+        return { ...st, status: "ended", question: null, endedAt: now };
       }
       const q = questions[idx];
       const startedAt = now + LIMITS.countdownMs;
@@ -694,7 +711,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         break;
       }
       case "end":
-        st = { ...st, status: "ended", question: null };
+        st = { ...st, status: "ended", question: null, endedAt: now };
         break;
       // Stop the game: players and answers are cleared every time.
       case "stop":
@@ -706,6 +723,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       default:
         return fail(400, "คำสั่งไม่ถูกต้อง");
     }
+    st = { ...st, updatedAt: now };
     await store.setJSON("state", st);
     return json({ state: stateView(st, now) });
   }
@@ -783,7 +801,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
 
   // ---- router ----
 
-  return async function handle(req) {
+  async function handle(req) {
     try {
       const url = new URL(req.url);
       const path = url.pathname.replace(/^\/api/, "").replace(/\/+$/, "") || "/";
@@ -806,5 +824,13 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
       console.error(e);
       return fail(500, "เซิร์ฟเวอร์ขัดข้อง ลองใหม่อีกครั้ง");
     }
+  }
+
+  // Used by the scheduled cleanup function: reading the state applies the
+  // automatic-clear rules even when nobody has the site open.
+  handle.sweep = async () => {
+    const st = await getState();
+    return phaseOf(st, Date.now());
   };
+  return handle;
 }
