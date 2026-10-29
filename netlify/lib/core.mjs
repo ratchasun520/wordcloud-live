@@ -218,7 +218,9 @@ async function aiCluster({ question, labels, items, env, fetchImpl }) {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      throw new Error(`AI ตอบกลับ ${res.status} ${detail.slice(0, 160)}`);
+      const err = new Error(`AI ตอบกลับ ${res.status} ${detail.slice(0, 160)}`);
+      err.status = res.status;
+      throw err;
     }
     const data = await res.json();
     const text = (data.content || [])
@@ -756,9 +758,12 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         source = "ai";
       } catch (e) {
         error = e && e.name === "AbortError" ? "AI ตอบช้าเกินไป" : String((e && e.message) || e);
+        // 401/403: the key is wrong or has no access. Retrying will not help.
+        const errorCode = e && (e.status === 401 || e.status === 403) ? "ai_auth" : e && e.status === 429 ? "ai_busy" : "ai_error";
+        console.error("AI grouping failed:", error);
         added = localCluster(batch, map);
         // Not saved: the next request retries these answers with AI.
-        return json({ map: { ...map, ...added }, source: "local", error, pending: items.length - batch.length });
+        return json({ map: { ...map, ...added }, source: "local", error, errorCode, pending: items.length - batch.length });
       }
     } else {
       added = localCluster(batch, map);

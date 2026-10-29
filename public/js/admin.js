@@ -1,4 +1,4 @@
-import { $, el, api, storage, clock, norm, TYPE_LABEL, fmtTime, secondsLeft } from "./common.js";
+import { $, el, api, storage, clock, norm, TYPE_LABEL, fmtTime, secondsLeft, localCluster } from "./common.js";
 import { WordCloud } from "./cloud.js";
 import { AmbientMusic } from "./music.js";
 import { qrSvg } from "./qr.js";
@@ -341,7 +341,7 @@ function render() {
       maps.local = {};
       tableSig = "";
       seenRows = new Set();
-      clusterState.backoffUntil = 0;
+      if (!clusterState.aiBroken) clusterState.backoffUntil = 0;
       $("#aiNote").textContent = "";
       retrigger($(".qband"), "rise");
     }
@@ -493,6 +493,31 @@ function renderResults(q, answers, playerCount) {
 
 async function maybeCluster(q, answers) {
   if (!aiOn || q.type === "choice") return;
+  if (clusterState.aiBroken) {
+    // Key rejected earlier: group similar spellings in the browser, no more server calls.
+    const known = { ...maps.local, ...maps.server };
+    const items = [];
+    const seen = new Set();
+    for (const a2 of answers) {
+      for (const v of a2.values) {
+        const key = norm(v);
+        if (!known[key] && !seen.has(key)) {
+          seen.add(key);
+          items.push({ key, raw: v });
+        }
+      }
+    }
+    if (items.length) {
+      maps.local = { ...maps.local, ...localCluster(items, known) };
+      cloud.sig = "";
+      tableSig = "";
+      setTimeout(render, 0);
+    }
+    const note = $("#aiNote");
+    note.textContent = "AI ใช้งานไม่ได้ (คีย์ AI ไม่ถูกต้อง) ระบบรวมเฉพาะคำที่สะกดคล้ายกันแทน";
+    note.classList.add("err");
+    return;
+  }
   const now = Date.now();
   if (clusterState.busy || now - clusterState.last < 4000 || now < clusterState.backoffUntil) return;
   const map = maps.server;
@@ -506,8 +531,16 @@ async function maybeCluster(q, answers) {
     const note = $("#aiNote");
     if (res.error) {
       maps.local = res.map;
-      clusterState.backoffUntil = Date.now() + 20000;
-      note.textContent = `AI ขัดข้องชั่วคราว (${res.error}) จึงรวมเฉพาะคำที่สะกดคล้ายกันไปก่อน จะลองใหม่อัตโนมัติ`;
+      // Technical detail goes to the console; the projected screen gets a short line.
+      console.warn("AI grouping:", res.error);
+      if (res.errorCode === "ai_auth") {
+        clusterState.aiBroken = true;
+        clusterState.backoffUntil = Infinity;
+        note.textContent = "AI ใช้งานไม่ได้ (คีย์ AI ไม่ถูกต้อง) ระบบรวมเฉพาะคำที่สะกดคล้ายกันแทน";
+      } else {
+        clusterState.backoffUntil = Date.now() + 30000;
+        note.textContent = "AI ขัดข้องชั่วคราว ระบบรวมเฉพาะคำที่สะกดคล้ายกันไปก่อน แล้วจะลองใหม่";
+      }
       note.classList.add("err");
     } else {
       maps.server = { ...maps.server, ...res.map };

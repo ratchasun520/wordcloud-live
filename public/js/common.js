@@ -99,3 +99,53 @@ export function fmtTime(ms) {
 export function secondsLeft(endsAt) {
   return Math.max(0, Math.ceil((endsAt - clock.now()) / 1000));
 }
+
+// ---------- similar-spelling grouping (same rules as localCluster in netlify/lib/core.mjs) ----------
+function lev(a, b) {
+  const A = Array.from(a);
+  const B = Array.from(b);
+  if (!A.length) return B.length;
+  if (!B.length) return A.length;
+  let prev = Array.from({ length: B.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= A.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= B.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (A[i - 1] === B[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[B.length];
+}
+function similarity(a, b) {
+  if (a === b) return 1;
+  const la = Array.from(a).length;
+  const lb = Array.from(b).length;
+  const min = Math.min(la, lb);
+  const max = Math.max(la, lb);
+  if (min < 3) return 0;
+  if (a.includes(b) || b.includes(a)) return min / max >= 0.6 ? 0.85 : 0;
+  return 1 - lev(a, b) / max;
+}
+// items: [{ key, raw }], map: { key: label } -> labels for the new items
+export function localCluster(items, map) {
+  const groups = new Map();
+  for (const label of Object.values(map)) groups.set(norm(label), label);
+  const out = {};
+  for (const { key, raw } of items) {
+    let best = null;
+    let bestScore = 0;
+    for (const [gk, label] of groups) {
+      const s = similarity(key, gk);
+      if (s > bestScore) {
+        bestScore = s;
+        best = label;
+      }
+    }
+    if (best && bestScore >= 0.8) out[key] = best;
+    else {
+      out[key] = raw;
+      groups.set(key, raw);
+    }
+  }
+  return out;
+}
