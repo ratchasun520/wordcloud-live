@@ -648,7 +648,11 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     }
     const st = await getState();
     const openId = phaseOf(st, Date.now()) === "idle" ? null : st.projectId;
-    if (openId && !out.some((p) => p.id === openId)) return fail(409, "กดหยุดเกมก่อนลบโปรเจกต์ที่กำลังเปิดห้องอยู่");
+    // Deleting the project whose game is running ends that game and clears its players.
+    if (openId && !out.some((p) => p.id === openId)) {
+      await clearSession(st);
+      await store.setJSON("state", freshState());
+    }
     await store.setJSON("projects", out);
     return json({ projects: out });
   }
@@ -682,14 +686,12 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
         const project = (await getProjects()).find((p) => p.id === body.projectId);
         if (!project) return fail(404, "ไม่พบโปรเจกต์");
         const phase = phaseOf(st, now);
-        if (["countdown", "live", "closed"].includes(phase) && st.projectId !== project.id) {
-          return fail(409, "กดหยุดเกมของโปรเจกต์ที่เล่นอยู่ก่อน");
-        }
         if (st.projectId === project.id && phase !== "idle" && phase !== "ended") {
-          // Already open: keep the players who joined.
+          // Same project still in play (e.g. the host left full screen): carry on where it was.
           st = { ...st, projectName: project.name };
           break;
         }
+        // Otherwise start fresh; a game left running for another project ends here.
         await clearSession(st);
         st = { ...freshState(), status: "lobby", projectId: project.id, projectName: project.name };
         break;

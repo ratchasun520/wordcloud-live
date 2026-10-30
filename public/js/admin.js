@@ -238,7 +238,6 @@ $("#btnLogout").addEventListener("click", () => showLogin());
 // button) goes back to the settings page while the game keeps running.
 function selectTab(name) {
   const stage = name === "stage";
-  $("#tabStage").setAttribute("aria-selected", String(stage));
   $("#tabSettings").setAttribute("aria-selected", String(!stage));
   $("#viewStage").hidden = !stage;
   $("#viewSettings").hidden = stage;
@@ -255,9 +254,7 @@ function selectTab(name) {
     setTimeout(() => (cloud.layout(), namesCloud.layout()), 350);
   }
 }
-$("#tabStage").addEventListener("click", () => selectTab("stage"));
 $("#tabSettings").addEventListener("click", () => selectTab("settings"));
-$("#btnGoStage").addEventListener("click", () => selectTab("stage"));
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && !$("#viewStage").hidden) selectTab("settings");
 });
@@ -331,14 +328,6 @@ function localPhase() {
   if (now <= s.endsAt) return "live";
   return "closed";
 }
-const PHASE_TEXT = {
-  idle: "ยังไม่เปิดห้อง",
-  lobby: "เปิดห้องรอผู้เข้าร่วม",
-  countdown: "กำลังเริ่ม",
-  live: "กำลังรับคำตอบ",
-  closed: "แสดงผลลัพธ์",
-  ended: "จบเกม",
-};
 
 // ---------- render ----------
 function render() {
@@ -346,13 +335,10 @@ function render() {
   const phase = localPhase();
   const s = data.state;
   document.body.dataset.phase = phase;
-  $("#statusText").textContent = PHASE_TEXT[phase] || phase;
-  $("#statusChip").classList.toggle("live", phase === "live" || phase === "countdown");
 
   const inQuestion = ["countdown", "live", "closed"].includes(phase);
   const roomOpen = phase !== "idle";
   // The main screen exists only once a project's room has been opened.
-  $("#tabStage").hidden = !roomOpen;
   if (!roomOpen && !$("#viewStage").hidden && !openingRoom) selectTab("settings");
   setLobbyQr(s.projectId);
   $("#stageLobby").hidden = phase !== "lobby";
@@ -730,7 +716,6 @@ function tick() {
   $("#timebar").classList.toggle("low", low);
   const frac = phase === "countdown" ? 1 : Math.max(0, Math.min(1, (s.endsAt - clock.now()) / (total * 1000)));
   $("#timebarFill").style.transform = `scaleX(${frac})`;
-  $("#statusText").textContent = PHASE_TEXT[phase];
   $("#btnClose").disabled = phase === "closed";
   updateMusic(phase);
 }
@@ -793,7 +778,6 @@ const stopGame = async () => {
   await control("stop");
 };
 twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
-twoStep($("#btnStopRoom"), "หยุดเกมและปิดห้อง", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
 
 $("#btnExitStage").addEventListener("click", () => selectTab("settings"));
 $("#btnPresentExit").addEventListener("click", () => selectTab("settings"));
@@ -810,7 +794,6 @@ function setProjects(list) {
 const openProjectId = () => (data && data.state.phase !== "idle" ? data.state.projectId : null);
 
 const selected = () => projects.find((p) => p.id === selectedId) || projects[0];
-const gameRunning = () => data && ["countdown", "live", "closed"].includes(localPhase());
 
 function note(text, isError) {
   const n = $("#projectNote");
@@ -874,7 +857,6 @@ function renderSettings() {
         "small",
         {},
         `${p.questions.length} คำถาม · ${ADVANCE_LABEL[p.settings.advance]}`,
-        p.id === openProjectId() ? el("span", { class: "live-tag", text: " · เปิดห้องอยู่" }) : null,
       ),
     );
     item.addEventListener("click", () => {
@@ -891,35 +873,27 @@ function renderSettings() {
   document.querySelector(`input[name="pAdvance"][value="${sel.settings.advance}"]`).checked = true;
   $("#pResultWrap").hidden = sel.settings.advance !== "auto";
   if (document.activeElement !== $("#pResult")) $("#pResult").value = sel.settings.resultSeconds;
-  $("#btnDelProject").disabled = projects.length <= 1 || sel.id === openProjectId();
+  $("#btnDelProject").disabled = projects.length <= 1;
   renderLaunch();
   renderQList();
 }
 
 let launchSig = "";
+// One button, always: it starts this project's game in full screen. If this
+// project's game is still running (the host left full screen), it carries on.
 function renderLaunch() {
   const sel = selected();
   if (!sel) return;
   const url = joinUrlFor(sel.id);
-  const openId = openProjectId();
-  const isOpen = sel.id === openId;
-  const busyOther = !!openId && !isOpen && gameRunning();
-  const sig = [sel.id, isOpen, busyOther, sel.questions.length, openId].join("|");
+  const sig = [sel.id, sel.questions.length].join("|");
   if (sig === launchSig) return;
   launchSig = sig;
   $("#projectQr").innerHTML = qrFor(url);
   $("#projectLink").textContent = shortUrl(url);
-  $("#openBadge").hidden = !isOpen;
-  $("#btnOpenProject").hidden = isOpen;
-  $("#btnGoStage").hidden = !isOpen;
-  $("#btnStopRoom").hidden = !isOpen;
-  $("#btnOpenProject").disabled = busyOther || !sel.questions.length;
-  const note = $("#launchNote");
-  if (!sel.questions.length) note.textContent = "เพิ่มคำถามอย่างน้อย 1 ข้อก่อนเริ่มเกม";
-  else if (busyOther) note.textContent = "มีโปรเจกต์อื่นกำลังเล่นอยู่ กดหยุดเกมนั้นก่อน";
-  else if (isOpen) note.textContent = "ห้องนี้เปิดอยู่ ผู้เล่นสแกน QR นี้เพื่อเข้าร่วมได้";
-  else if (openId) note.textContent = "เริ่มเกมโปรเจกต์นี้จะปิดห้องที่เปิดอยู่ และล้างรายชื่อผู้เข้าร่วมเดิม";
-  else note.textContent = "ผู้เล่นสแกน QR นี้ได้ตั้งแต่ตอนนี้ และจะเข้าห้องเองเมื่อกดเริ่มเกม";
+  $("#btnOpenProject").disabled = !sel.questions.length;
+  $("#launchNote").textContent = sel.questions.length
+    ? "ผู้เล่นสแกน QR นี้เพื่อเข้าร่วมเกม"
+    : "เพิ่มคำถามอย่างน้อย 1 ข้อก่อนเริ่มเกม";
 }
 
 $("#btnOpenProject").addEventListener("click", async () => {

@@ -273,14 +273,30 @@ test("rooms: one project open at a time, links are per project", async () => {
   let s = (await c.call("GET", "/state?p=p-bbbb1", null, false)).body;
   assert.equal(s.advance, "auto");
   assert.equal(s.question.text, "qb");
-  assert.equal((await c.call("POST", "/admin/control", { action: "open", projectId: "p-aaaa1" })).status, 409);
-  // Cannot delete the project whose room is open.
-  assert.equal((await c.call("PUT", "/admin/projects", { projects: [projects[0]] })).status, 409);
   // Editing its questions is fine; the game keeps its snapshot.
   assert.equal((await c.call("PUT", "/admin/projects", { projects: [projects[0], { ...projects[1], questions: [] }] })).status, 200);
   s = (await c.call("GET", "/state", null, false)).body;
   assert.equal(s.question.text, "qb");
+  // Re-opening B mid-game carries on where it was.
+  await c.call("POST", "/admin/control", { action: "open", projectId: "p-bbbb1" });
+  s = (await c.call("GET", "/state", null, false)).body;
+  assert.equal(s.question.text, "qb");
+  // Starting A ends B's game and clears its players.
+  const pb = (await c.call("POST", "/join", { name: "late", projectId: "p-bbbb1" }, false)).body;
+  assert.ok(pb.pid);
+  assert.equal((await c.call("POST", "/admin/control", { action: "open", projectId: "p-aaaa1" })).status, 200);
+  ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.state.phase, "lobby");
+  assert.equal(ov.state.projectId, "p-aaaa1");
+  assert.equal(ov.players.length, 0);
+  // Deleting the project in play ends its game.
+  await c.call("POST", "/join", { name: "x", projectId: "p-aaaa1" }, false);
+  assert.equal((await c.call("PUT", "/admin/projects", { projects: [projects[1]] })).status, 200);
+  ov = (await c.call("GET", "/admin/overview")).body;
+  assert.equal(ov.state.phase, "idle");
+  assert.equal(ov.players.length, 0);
   // Stop closes the room.
+  await c.call("POST", "/admin/control", { action: "open", projectId: "p-bbbb1" });
   await c.call("POST", "/admin/control", { action: "stop" });
   ov = (await c.call("GET", "/admin/overview")).body;
   assert.equal(ov.state.phase, "idle");

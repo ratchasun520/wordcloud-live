@@ -50,13 +50,11 @@ body.present .app { max-width: none; }
 .pitem[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); }
 .pitem b { font-family: var(--f-display); font-weight: 600; overflow-wrap: anywhere; }
 .pitem small { color: var(--ink2); }
-.pitem .live-tag { color: var(--accent); font-weight: 600; }
 .settings-main { display: grid; gap: 20px; min-width: 0; }
 .pform { padding: 20px; display: grid; gap: 16px; }
 .pform-head { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
 .pform-head .field { min-width: 220px; }
 .pform-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.badge-active { padding: 6px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-family: var(--f-display); font-weight: 600; font-size: 0.9rem; }
 .typepick.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field.narrow { max-width: 320px; }
 
