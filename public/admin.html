@@ -104,7 +104,7 @@
             <div class="cloud names-cloud" id="namesCloud" aria-label="รายชื่อผู้เข้าร่วม"></div>
             <ul class="vh" id="playerNames" aria-live="polite"></ul>
           </div>
-          <div class="startrow hide-present">
+          <div class="startrow dock" id="lobbyDock">
             <button class="btn big" type="button" id="btnStart">เริ่มคำถาม</button>
             <span class="grow"></span>
             <button class="btn ghost" type="button" id="btnPresentLobby">เต็มจอ</button>
@@ -133,8 +133,23 @@
             <div><span class="muted" id="countLabel">คำถามข้อที่ 1 กำลังจะเริ่ม</span><b id="countNum">3</b></div>
           </div>
           <div class="answered-badge num" id="answeredBadge"></div>
+          <!-- Shown when the time is up: one tidy table of what everyone answered. -->
+          <div class="summary" id="summary" hidden>
+            <div class="summary-head">
+              <div>
+                <span class="summary-kicker">สรุปผล</span>
+                <h2 id="summaryTitle">ข้อ 1</h2>
+              </div>
+              <span class="summary-count num" id="summaryCount"></span>
+            </div>
+            <div class="summary-list" id="summaryList"></div>
+          </div>
+          <div class="viewswitch" id="viewSwitch" role="group" aria-label="มุมมองผลลัพธ์" hidden>
+            <button type="button" data-view="table" class="on">ตารางสรุป</button>
+            <button type="button" data-view="live" id="viewLiveBtn">เมฆคำ</button>
+          </div>
         </div>
-        <div class="controls hide-present">
+        <div class="controls dock" id="stageDock">
           <button class="btn ghost" type="button" id="btnClose">ปิดรับคำตอบ</button>
           <button class="btn ghost" type="button" id="btnExtend">+15 วินาที</button>
           <button class="btn" type="button" id="btnNext">ข้อถัดไป</button>
@@ -159,6 +174,8 @@
           </div>
         </div>
       </div>
+
+      <button class="btn ghost small present-exit" type="button" id="btnPresentExit">ออกจากเต็มจอ</button>
 
       <!-- Game finished -->
       <div class="finale" id="stageEnded" hidden>

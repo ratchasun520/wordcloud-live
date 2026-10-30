@@ -316,6 +316,7 @@ function render() {
   if (!data) return;
   const phase = localPhase();
   const s = data.state;
+  document.body.dataset.phase = phase;
   $("#statusText").textContent = PHASE_TEXT[phase] || phase;
   $("#statusChip").classList.toggle("live", phase === "live" || phase === "countdown");
 
@@ -345,6 +346,8 @@ function render() {
       $("#aiNote").textContent = "";
       boardCards.clear();
       $("#answerBoard").textContent = "";
+      summaryView = "table";
+      summarySig = "";
       retrigger($(".qband"), "rise");
     }
     $("#qNo").textContent = `ข้อ ${s.qIndex + 1}/${s.total} · ${TYPE_LABEL[q.type]}`;
@@ -355,9 +358,18 @@ function render() {
     $("#btnAI").hidden = q.type !== "wordcloud";
     const thGroup = $("#thGroup");
     if (thGroup) thGroup.hidden = q.type !== "wordcloud" || !aiOn;
+    // When the time is up a summary table takes the stage; the switch can bring
+    // the cloud (or the answer cards) back.
+    const closed = phase === "closed";
+    const showSummary = closed && summaryView === "table";
+    $("#viewSwitch").hidden = !closed;
+    $("#viewLiveBtn").textContent = isOpen ? "การ์ดคำตอบ" : "เมฆคำ";
+    for (const b of document.querySelectorAll("#viewSwitch button")) b.classList.toggle("on", b.dataset.view === summaryView);
+    $("#summary").hidden = !showSummary;
+    $("#answeredBadge").hidden = showSummary;
     // Long answers: a scrollable board of answer cards replaces the cloud and the table.
-    $("#cloud").hidden = isOpen;
-    $("#answerBoard").hidden = !isOpen;
+    $("#cloud").hidden = isOpen || showSummary;
+    $("#answerBoard").hidden = !isOpen || showSummary;
     $("#answersCard").hidden = isOpen;
     cloud.setEmptyText(phase === "closed" ? "ไม่มีคำตอบสำหรับข้อนี้" : "รอคำตอบแรก…");
 
@@ -365,6 +377,7 @@ function render() {
     if (res && res.questionId === q.id) {
       maps.server = { ...maps.server, ...res.map };
       renderResults(q, res.answers, data.players.length);
+      if (phase === "closed") renderSummary(q, res.answers, data.players.length, s);
       maybeCluster(q, res.answers);
     }
   }
@@ -497,6 +510,98 @@ function renderBoard(answers) {
     boardCards.set(a.pid, card);
     requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove("enter")));
   }
+}
+
+// ---------- summary table (shown when the time is up) ----------
+let summaryView = "table";
+let summarySig = "";
+function summaryRows(q, answers) {
+  if (q.type === "open") return null;
+  const groups = new Map();
+  const add = (key, label, a) => {
+    if (!groups.has(key)) groups.set(key, { label, people: new Map(), i: groups.size });
+    groups.get(key).people.set(a.pid, a);
+  };
+  if (q.type === "choice") {
+    for (const o of q.options) groups.set(o, { label: o, people: new Map(), i: groups.size });
+    for (const a of answers) add(a.values[0], a.values[0], a);
+  } else {
+    const { labelOf } = buildWords(q, answers);
+    for (const a of answers) for (const v of a.values) {
+      const label = labelOf(v);
+      add(norm(label), label, a);
+    }
+  }
+  return [...groups.values()]
+    .map((g) => ({ label: g.label, people: [...g.people.values()], i: g.i }))
+    .sort((x, y) => y.people.length - x.people.length || x.i - y.i);
+}
+
+function renderSummary(q, answers, playerCount, s) {
+  $("#summaryTitle").textContent = `ข้อ ${s.qIndex + 1} จาก ${s.total}`;
+  $("#summaryCount").textContent = `ตอบ ${answers.length} จาก ${playerCount} คน`;
+  const rows = summaryRows(q, answers);
+  const sig = JSON.stringify([q.id, aiOn, rows ? rows.map((r) => [r.label, r.people.map((p) => p.pid)]) : answers.map((a) => a.pid)]);
+  if (sig === summarySig) return;
+  const firstPaint = !summarySig;
+  summarySig = sig;
+  const list = $("#summaryList");
+  list.textContent = "";
+  list.classList.toggle("open-list", !rows);
+  list.classList.toggle("animate", firstPaint);
+
+  if (!rows) {
+    if (!answers.length) list.append(el("p", { class: "summary-empty", text: "ไม่มีคำตอบสำหรับข้อนี้" }));
+    answers.forEach((a, i) =>
+      list.append(
+        el(
+          "div",
+          { class: "srow sopen", style: `--i:${Math.min(i, 14)}` },
+          el("span", { class: "who" }, avatar(a.name), el("b", { text: a.name })),
+          el("p", { class: "stext", text: a.values.join(" ") }),
+        ),
+      ),
+    );
+    return;
+  }
+  if (!rows.length) {
+    list.append(el("p", { class: "summary-empty", text: "ไม่มีคำตอบสำหรับข้อนี้" }));
+    return;
+  }
+  const top = rows[0].people.length || 1;
+  const total = answers.length || 1;
+  rows.forEach((r, i) => {
+    const n = r.people.length;
+    const pct = Math.round((n / total) * 100);
+    const lead = n > 0 && n === rows[0].people.length;
+    const people = el("div", { class: "people" });
+    if (n) r.people.forEach((p) => people.append(el("span", { class: "person" }, avatar(p.name), el("span", { text: p.name }))));
+    else people.append(el("span", { class: "muted", text: "ไม่มีผู้เลือก" }));
+    list.append(
+      el(
+        "div",
+        { class: "srow" + (lead ? " lead" : "") + (n ? "" : " zero"), style: `--i:${Math.min(i, 14)}` },
+        el("span", { class: "srank num", text: n ? i + 1 : "–" }),
+        el(
+          "div",
+          { class: "smain" },
+          el("span", { class: "sname", text: r.label }),
+          el("span", { class: "sbar", "aria-hidden": "true" }, el("i", { style: `--w:${(n / top) * 100}%` })),
+        ),
+        people,
+        el("div", { class: "scount num" }, el("b", { text: n }), el("small", { text: answers.length ? `${pct}%` : "" })),
+      ),
+    );
+  });
+}
+
+for (const b of document.querySelectorAll("#viewSwitch button")) {
+  b.addEventListener("click", () => {
+    summaryView = b.dataset.view;
+    if (summaryView === "table") summarySig = "";
+    render();
+    if (summaryView === "live") requestAnimationFrame(() => cloud.layout());
+  });
 }
 
 function renderResults(q, answers, playerCount) {
@@ -837,6 +942,7 @@ document.addEventListener("keydown", (e) => {
 
 function setPresent(on) {
   document.body.classList.toggle("present", on);
+  wakeDock();
   $("#btnPresent").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
   $("#btnPresentLobby").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
   try {
@@ -848,8 +954,21 @@ function setPresent(on) {
   setTimeout(() => cloud.layout(), 300);
 }
 const togglePresent = () => setPresent(!document.body.classList.contains("present"));
+
+// Full screen: the control bar fades after a few seconds without the mouse,
+// and comes back as soon as the mouse moves or the screen is touched.
+let dockTimer = null;
+function wakeDock() {
+  document.body.classList.remove("dock-idle");
+  clearTimeout(dockTimer);
+  dockTimer = setTimeout(() => {
+    if (document.body.classList.contains("present")) document.body.classList.add("dock-idle");
+  }, 3500);
+}
+["mousemove", "pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, wakeDock, { passive: true }));
 $("#btnPresent").addEventListener("click", togglePresent);
 $("#btnPresentLobby").addEventListener("click", togglePresent);
+$("#btnPresentExit").addEventListener("click", () => setPresent(false));
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && document.body.classList.contains("present")) setPresent(false);
 });
@@ -981,9 +1100,12 @@ function renderLaunch() {
 $("#btnOpenProject").addEventListener("click", async () => {
   const id = selected().id;
   music.unlock();
+  // Go full screen right away: browsers only allow it straight after a click.
+  setPresent(true);
   try {
     await api("/admin/control", { method: "POST", token, body: { action: "open", projectId: id } });
   } catch (err) {
+    setPresent(false);
     if (err.status === 401) return expired();
     note(err.message, true);
     return;
