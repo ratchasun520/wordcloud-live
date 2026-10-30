@@ -7,12 +7,12 @@ body.admin .wrap { padding-block: 16px 32px; }
 .tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- waiting room ---------- */
-.lobby { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr); gap: 24px; min-height: calc(100vh - 120px); min-height: calc(100dvh - 120px); }
+.lobby { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr); gap: 24px; height: calc(100vh - 32px); height: calc(100dvh - 32px); }
 .lobby .qrbox { align-content: center; padding: 32px; }
 .lobby .qrbox h1 { font-size: clamp(2rem, 3.2vw, 3.2rem); }
 .lobby .qr { width: min(100%, 50vh, 460px); }
 .lobby .joinurl { font-size: clamp(1.1rem, 1.6vw, 1.5rem); }
-.lobby .side { display: grid; grid-template-rows: auto 1fr auto; gap: 20px; padding: 28px 32px; align-content: stretch; }
+.lobby .side { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 16px; padding: 28px 32px; align-content: stretch; min-height: 0; }
 .side-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; }
 .lobby .bigcount b { font-size: clamp(4rem, 9vw, 7.5rem); color: var(--accent); }
 .project-pill { padding: 8px 16px; border-radius: 999px; background: var(--accent-soft); font-family: var(--f-display); font-weight: 500; text-align: right; }
@@ -20,7 +20,6 @@ body.admin .wrap { padding-block: 16px 32px; }
 .lobby .names { max-height: none; min-height: 0; overflow: auto; align-content: flex-start; gap: 12px; }
 .lobby .names span { font-size: clamp(1.1rem, 1.6vw, 1.6rem); padding: 8px 20px; }
 .names-empty { font-size: 1.1rem; align-self: start; }
-.startrow .grow { flex: 1; }
 
 /* ---------- question stage ---------- */
 .stage { display: grid; gap: 16px; }
@@ -29,7 +28,6 @@ body.admin .wrap { padding-block: 16px 32px; }
 .qband .qno { font-size: clamp(1rem, 1.3vw, 1.3rem); }
 .clock b { font-size: clamp(3rem, 6vw, 5rem); }
 .qband h1.veiled { visibility: hidden; }
-.cloud { height: max(440px, calc(100vh - 300px)); height: max(440px, calc(100dvh - 300px)); }
 .countdown-overlay b { font-size: clamp(6rem, 16vw, 12rem); }
 .countdown-overlay .muted { font-size: clamp(1.2rem, 2vw, 1.8rem); }
 .answered-badge {
@@ -37,7 +35,6 @@ body.admin .wrap { padding-block: 16px 32px; }
   padding: 6px 14px; border-radius: 999px; background: var(--accent-soft);
   font-family: var(--f-display); font-weight: 500; font-size: clamp(0.95rem, 1.2vw, 1.2rem);
 }
-body.present .cloud { height: calc(100vh - 210px); height: calc(100dvh - 210px); }
 body.present .app { max-width: none; }
 
 /* ---------- settings ---------- */
@@ -227,10 +224,10 @@ body.logged-out::before { opacity: 0.6; }
 .launch-note { font-size: 0.9rem; }
 .launch-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
-.names-wrap { position: relative; min-height: 280px; }
+.names-wrap { position: relative; min-height: 0; overflow: hidden; }
 .lobby .names-cloud {
   position: absolute; inset: 0; height: auto; min-height: 0;
-  background: transparent; border: 0; border-radius: 0; overflow: visible;
+  background: transparent; border: 0; border-radius: 0; overflow: hidden;
 }
 .names-cloud .cloud-empty { display: none; }
 .names-cloud .cw { animation: nameFloat 5.5s ease-in-out infinite alternate; }
@@ -253,7 +250,6 @@ body.logged-out::before { opacity: 0.6; }
 
 /* ================= long answers: card board ================= */
 .answer-board {
-  height: max(440px, calc(100vh - 300px)); height: max(440px, calc(100dvh - 300px));
   overflow-y: auto; scroll-behavior: smooth; overscroll-behavior: contain;
   padding: 20px 20px 72px;
   border-radius: var(--radius); border: 1px solid var(--line);
@@ -261,7 +257,6 @@ body.logged-out::before { opacity: 0.6; }
   display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
   gap: 16px; align-content: start;
 }
-body.present .answer-board { height: calc(100vh - 210px); height: calc(100dvh - 210px); }
 .acard {
   position: relative; display: grid; gap: 12px; align-content: start;
   padding: 18px 20px 20px; border-radius: 16px;
@@ -294,46 +289,8 @@ body.present .answer-board { height: calc(100vh - 210px); height: calc(100dvh - 
   font-family: var(--f-display); font-weight: 600; font-size: 0.95rem; line-height: 1;
 }
 
-/* ================= answers table ================= */
-.answers-card { overflow: hidden; }
-.answers-card .tablehead { padding: 16px 20px 10px; }
-.answers-card .tablehead h2 { font-size: 1.2rem; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.answers-card .newest { font-family: var(--f-body); font-weight: 400; font-size: 0.85rem; }
-.answers-card .tablescroll { max-height: 62vh; position: relative; }
-table.answers { font-size: 1.05rem; border-collapse: separate; border-spacing: 0; }
-table.answers th {
-  padding: 10px 20px; font-size: 0.85rem; letter-spacing: 0.02em; text-transform: none;
-  background: color-mix(in srgb, var(--surface) 94%, var(--accent)); border-bottom: 1px solid var(--line); z-index: 1;
-}
-table.answers td { padding: 14px 20px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); vertical-align: middle; }
-table.answers tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
-table.answers tbody tr:hover td { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
-table.answers th.t, table.answers td.t { text-align: right; width: 1%; white-space: nowrap; }
-table.answers td.n { width: 1%; white-space: nowrap; }
+/* people chips + names (summary table) */
 .who { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-family: var(--f-display); }
-.ans {
-  display: inline-block; margin: 3px 8px 3px 0; padding: 4px 12px; border-radius: 10px;
-  background: color-mix(in srgb, var(--ink) 5%, var(--surface)); border: 1px solid var(--line);
-  line-height: 1.5; overflow-wrap: anywhere;
-}
-td.g .grp { margin: 3px 6px 3px 0; padding: 3px 10px; font-size: 0.9rem; }
-.empty-row { text-align: center; color: var(--ink2); padding: 28px 20px !important; }
-@media (max-width: 640px) {
-  table.answers td, table.answers th { padding: 10px 12px; }
-  .answer-board { padding: 14px 14px 64px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .acard.enter { opacity: 1; transform: none; }
-}
-
-/* ================= choice questions: one row per option ================= */
-tr.choice-row td { vertical-align: top; padding-block: 16px; }
-td.opt-cell { width: 34%; min-width: 220px; }
-.opt-name { display: block; font-family: var(--f-display); font-weight: 600; font-size: 1.1rem; line-height: 1.45; overflow-wrap: anywhere; }
-.opt-bar { display: block; height: 6px; margin-top: 10px; border-radius: 3px; background: color-mix(in srgb, var(--line) 70%, transparent); overflow: hidden; }
-.opt-bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.7s var(--ease-out); }
-tr.choice-row.lead .opt-name { color: var(--accent); }
-tr.choice-row.zero td { opacity: 0.55; }
 .people { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .person {
   display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px;
@@ -341,15 +298,10 @@ tr.choice-row.zero td { opacity: 0.55; }
   font-family: var(--f-display); font-weight: 500;
 }
 .person .avatar { width: 28px; height: 28px; font-size: 0.85rem; }
-.person.fresh { animation: chipIn 0.55s var(--ease-spring) both; }
-td.count b { font-family: var(--f-display); font-size: 1.6rem; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-td.count small { color: var(--ink2); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-tr.choice-row.lead td.count b { color: var(--accent); }
-@media (max-width: 640px) {
-  td.opt-cell { min-width: 140px; }
-}
+@media (max-width: 640px) { .answer-board { padding: 14px 14px 64px; } }
+@media (prefers-reduced-motion: reduce) { .acard.enter { opacity: 1; transform: none; } }
 
-/* ================= full screen: floating control bar ================= */
+/* ================= main screen: always full screen ================= */
 .present-exit { display: none; }
 body.present .dock {
   position: fixed; left: 50%; bottom: 18px; z-index: 40;
@@ -364,12 +316,7 @@ body.present .dock {
   transition: opacity 0.45s var(--ease-out), transform 0.45s var(--ease-out);
   animation: dockIn 0.6s var(--ease-spring) both;
 }
-body.present .dock .grow, body.present #btnClearLobby, body.present #btnAI,
-body.present #btnMusic, body.present #btnQR { display: none; }
 body.present .dock .btn { white-space: nowrap; border-radius: 999px; padding: 10px 18px; font-size: 1rem; }
-body.present .dock .btn.big { padding: 10px 26px; }
-body.present .dock #btnPresent, body.present .dock #btnPresentLobby { order: 9; }
-body.present .dock #btnStop { order: 10; }
 body.present.dock-idle .dock { opacity: 0.16; transform: translateX(-50%) translateY(6px); }
 body.present.dock-idle .dock:hover, body.present .dock:focus-within { opacity: 1; transform: translateX(-50%); }
 body.present[data-phase="ended"] .present-exit {
@@ -380,7 +327,7 @@ body.present.dock-idle .present-exit { opacity: 0; }
 body.present.dock-idle .present-exit:hover { opacity: 1; }
 @keyframes dockIn { from { opacity: 0; transform: translateX(-50%) translateY(24px); } }
 /* leave room under the stage for the bar */
-body.present .cloud, body.present .answer-board, body.present .summary { height: calc(100vh - 262px); height: calc(100dvh - 262px); }
+body.present .stage .cloud, body.present .answer-board, body.present .summary { height: calc(100vh - 262px); height: calc(100dvh - 262px); }
 body.present .answered-badge { bottom: 14px; }
 /* keep cloud words (z-index up to 1000) inside the cloud so the bar stays on top */
 .cloud { z-index: 0; }
@@ -391,7 +338,6 @@ body #stageLive:not([hidden]), body #stageLobby:not([hidden]), body #stageEnded:
 /* ================= summary table (time is up) ================= */
 .summary {
   position: relative; display: flex; flex-direction: column; overflow: hidden;
-  height: max(440px, calc(100vh - 300px)); height: max(440px, calc(100dvh - 300px));
   border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface);
   animation: summaryIn 0.6s var(--ease-out) both;
 }
@@ -456,7 +402,6 @@ body #stageLive:not([hidden]), body #stageLobby:not([hidden]), body #stageEnded:
   transition: background 0.25s, color 0.25s;
 }
 .viewswitch button.on { background: var(--accent); color: var(--accent-ink, #fff); }
-body.present .viewswitch { bottom: 14px; }
 
 @media (max-width: 900px) {
   .srow { grid-template-columns: 44px minmax(0, 1fr) 80px; }
@@ -466,3 +411,8 @@ body.present .viewswitch { bottom: 14px; }
 @media (prefers-reduced-motion: reduce) {
   .summary, .summary-list.animate .srow, .summary-list.animate .sbar i, body.present .dock { animation: none; }
 }
+
+/* waiting room: the only button sits bottom-right inside the names card */
+.lobby .startrow { justify-content: flex-end; }
+.lobby .startrow .btn.big { padding: 14px 34px; font-size: clamp(1.1rem, 1.4vw, 1.35rem); border-radius: 999px; box-shadow: 0 14px 30px -14px var(--accent); }
+body.admin.present .wrap { padding: 16px; }

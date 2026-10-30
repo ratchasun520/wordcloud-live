@@ -40,8 +40,9 @@ if (navType !== "reload") session.del();
 let token = session.get();
 let data = null;
 let pollTimer = null;
-let aiOn = storage.get("wc-ai") ?? true;
-let musicOn = storage.get("wc-music") ?? true;
+// The main screen has no AI or music switches: AI grouping and soft music are always on.
+const aiOn = true;
+const musicOn = true;
 
 // settings state
 let projects = [];
@@ -57,10 +58,9 @@ const namesCloud = new WordCloud($("#namesCloud"), { sizeFloor: 0.5 });
 namesCloud.setEmptyText("");
 const maps = { qid: null, server: {}, local: {} };
 const clusterState = { busy: false, last: 0, backoffUntil: 0 };
-let tableSig = "";
 let lastQid = null;
-let seenRows = new Set();
 let celebratedEnd = false;
+let openingRoom = false;
 
 // ---------- join links + QR: one per project ----------
 const joinUrlFor = (projectId) => `${location.origin}/play?p=${encodeURIComponent(projectId)}`;
@@ -77,9 +77,7 @@ function setLobbyQr(projectId) {
   lobbyQrFor = projectId;
   lobbyUrl = joinUrlFor(projectId);
   $("#joinUrl").textContent = shortUrl(lobbyUrl);
-  $("#joinUrl2").textContent = shortUrl(lobbyUrl);
   $("#qrLobby").innerHTML = qrFor(lobbyUrl);
-  $("#qrBig").innerHTML = qrFor(lobbyUrl);
 }
 
 async function copyText(btn, text, selectEl) {
@@ -96,7 +94,6 @@ async function copyText(btn, text, selectEl) {
   }
   setTimeout(() => (btn.textContent = label), 2000);
 }
-$("#btnCopy").addEventListener("click", () => copyText($("#btnCopy"), lobbyUrl, $("#joinUrl")));
 $("#btnCopyProject").addEventListener("click", () =>
   copyText($("#btnCopyProject"), joinUrlFor(selected().id), $("#projectLink")),
 );
@@ -236,17 +233,49 @@ $("#loginForm").addEventListener("submit", async (e) => {
 $("#btnLogout").addEventListener("click", () => showLogin());
 
 // ---------- tabs ----------
+// The main screen only exists in full screen. Opening it asks the browser for
+// full screen (allowed straight after a click); leaving full screen (Esc or the
+// button) goes back to the settings page while the game keeps running.
 function selectTab(name) {
   const stage = name === "stage";
   $("#tabStage").setAttribute("aria-selected", String(stage));
   $("#tabSettings").setAttribute("aria-selected", String(!stage));
   $("#viewStage").hidden = !stage;
   $("#viewSettings").hidden = stage;
-  if (stage) requestAnimationFrame(() => cloud.layout());
+  document.body.classList.toggle("present", stage);
+  try {
+    if (stage && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+    if (!stage && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  } catch {
+    /* some browsers have no full screen; the layout is full screen anyway */
+  }
+  wakeDock();
+  if (stage) {
+    requestAnimationFrame(() => cloud.layout());
+    setTimeout(() => (cloud.layout(), namesCloud.layout()), 350);
+  }
 }
 $("#tabStage").addEventListener("click", () => selectTab("stage"));
 $("#tabSettings").addEventListener("click", () => selectTab("settings"));
 $("#btnGoStage").addEventListener("click", () => selectTab("stage"));
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && !$("#viewStage").hidden) selectTab("settings");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#viewStage").hidden) selectTab("settings");
+});
+
+// Full screen: the control bar fades after a few seconds without the mouse,
+// and comes back as soon as the mouse moves or the screen is touched.
+let dockTimer = null;
+function wakeDock() {
+  document.body.classList.remove("dock-idle");
+  clearTimeout(dockTimer);
+  dockTimer = setTimeout(() => {
+    if (document.body.classList.contains("present")) document.body.classList.add("dock-idle");
+  }, 3500);
+}
+["mousemove", "pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, wakeDock, { passive: true }));
 
 // ---------- polling ----------
 function startPolling() {
@@ -324,7 +353,7 @@ function render() {
   const roomOpen = phase !== "idle";
   // The main screen exists only once a project's room has been opened.
   $("#tabStage").hidden = !roomOpen;
-  if (!roomOpen && !$("#viewStage").hidden) selectTab("settings");
+  if (!roomOpen && !$("#viewStage").hidden && !openingRoom) selectTab("settings");
   setLobbyQr(s.projectId);
   $("#stageLobby").hidden = phase !== "lobby";
   $("#stageLive").hidden = !inQuestion;
@@ -340,10 +369,7 @@ function render() {
       maps.qid = q.id;
       maps.server = {};
       maps.local = {};
-      tableSig = "";
-      seenRows = new Set();
       if (!clusterState.aiBroken) clusterState.backoffUntil = 0;
-      $("#aiNote").textContent = "";
       boardCards.clear();
       $("#answerBoard").textContent = "";
       summaryView = "table";
@@ -355,9 +381,6 @@ function render() {
     const last = s.qIndex + 1 >= s.total;
     $("#btnNext").textContent = last ? "จบเกม" : s.advance === "auto" ? "ข้ามไปข้อถัดไป" : "ข้อถัดไป";
     const isOpen = q.type === "open";
-    $("#btnAI").hidden = q.type !== "wordcloud";
-    const thGroup = $("#thGroup");
-    if (thGroup) thGroup.hidden = q.type !== "wordcloud" || !aiOn;
     // When the time is up a summary table takes the stage; the switch can bring
     // the cloud (or the answer cards) back.
     const closed = phase === "closed";
@@ -370,7 +393,6 @@ function render() {
     // Long answers: a scrollable board of answer cards replaces the cloud and the table.
     $("#cloud").hidden = isOpen || showSummary;
     $("#answerBoard").hidden = !isOpen || showSummary;
-    $("#answersCard").hidden = isOpen;
     cloud.setEmptyText(phase === "closed" ? "ไม่มีคำตอบสำหรับข้อนี้" : "รอคำตอบแรก…");
 
     const res = data.results;
@@ -605,125 +627,12 @@ for (const b of document.querySelectorAll("#viewSwitch button")) {
 }
 
 function renderResults(q, answers, playerCount) {
-  const countText = `ตอบแล้ว ${answers.length} จาก ${playerCount} คน`;
-  $("#answeredCount").textContent = countText;
-  $("#answeredBadge").textContent = countText;
+  $("#answeredBadge").textContent = `ตอบแล้ว ${answers.length} จาก ${playerCount} คน`;
   if (q.type === "open") {
     renderBoard(answers);
     return;
   }
-  const { words, labelOf } = buildWords(q, answers);
-  cloud.update(words);
-  if (q.type === "choice") {
-    renderChoiceTable(q, answers);
-    return;
-  }
-  setTableHead("people");
-
-  const showGroup = q.type === "wordcloud" && aiOn;
-  // Only show a group when AI moved the answer into a differently written group.
-  const rows = [...answers].reverse().map((a) => ({
-    a,
-    labels: [...new Set(a.values.map((v) => [v, labelOf(v)]).filter(([v, l]) => norm(v) !== norm(l)).map(([, l]) => l))],
-  }));
-  const sig = JSON.stringify([showGroup, rows.map((r) => [r.a.pid, r.a.values, r.labels])]);
-  if (sig === tableSig) return;
-  tableSig = sig;
-  const body = $("#answerRows");
-  body.textContent = "";
-  if (!rows.length) {
-    body.append(el("tr", {}, el("td", { colspan: 4, class: "empty-row", text: "ยังไม่มีคำตอบ" })));
-    return;
-  }
-  for (const { a, labels } of rows) {
-    const groupCell = el("td", { class: "g", hidden: !showGroup });
-    labels.forEach((l) => groupCell.append(el("span", { class: "grp", text: "→ " + l })));
-    if (!labels.length) groupCell.append(el("span", { class: "muted", text: "—" }));
-    const answerCell = el("td", { class: "a" });
-    a.values.forEach((v) => answerCell.append(el("span", { class: "ans", text: v })));
-    const fresh = !seenRows.has(a.pid);
-    seenRows.add(a.pid);
-    body.append(
-      el(
-        "tr",
-        { class: fresh ? "row-new" : null },
-        el("td", { class: "n" }, el("span", { class: "who" }, avatar(a.name), el("span", { text: a.name }))),
-        answerCell,
-        groupCell,
-        el("td", { class: "t", text: fmtTime(a.at) }),
-      ),
-    );
-  }
-}
-
-// Table header: "people" (one row per person) or "choice" (one row per option).
-let tableHeadMode = "people";
-function setTableHead(mode) {
-  if (tableHeadMode === mode) return;
-  tableHeadMode = mode;
-  const newest = document.querySelector("#answersCard .newest");
-  if (newest) newest.textContent = mode === "choice" ? "เรียงตามจำนวนผู้เลือก" : "ล่าสุดอยู่บนสุด";
-  const head = $("#answersHead");
-  head.textContent = "";
-  const tr = el("tr");
-  if (mode === "choice") {
-    tr.append(el("th", { text: "ตัวเลือก" }), el("th", { text: "ผู้ที่เลือกข้อนี้" }), el("th", { class: "t", text: "จำนวน" }));
-  } else {
-    tr.append(
-      el("th", { text: "ผู้ตอบ" }),
-      el("th", { text: "คำตอบ" }),
-      el("th", { id: "thGroup", text: "รวมเข้ากลุ่ม", hidden: !aiOn }),
-      el("th", { class: "t", text: "เวลา" }),
-    );
-  }
-  head.append(tr);
-}
-
-// Choice questions: one row per option with everyone who picked it.
-function renderChoiceTable(q, answers) {
-  setTableHead("choice");
-  const byOption = new Map(q.options.map((o) => [o, []]));
-  for (const a of answers) {
-    const pick = a.values[0];
-    if (!byOption.has(pick)) byOption.set(pick, []);
-    byOption.get(pick).push(a);
-  }
-  const total = answers.length || 1;
-  const order = [...byOption.entries()]
-    .map(([option, people], i) => ({ option, people, i }))
-    .sort((x, y) => y.people.length - x.people.length || x.i - y.i);
-  const sig = JSON.stringify(["choice", order.map((r) => [r.option, r.people.map((p) => p.pid)])]);
-  if (sig === tableSig) return;
-  tableSig = sig;
-  const body = $("#answerRows");
-  body.textContent = "";
-  const top = order[0] ? order[0].people.length : 0;
-  for (const { option, people } of order) {
-    const pct = Math.round((people.length / total) * 100);
-    const list = el("div", { class: "people" });
-    const names = el("td", { class: "people-cell" }, list);
-    if (people.length) {
-      for (const p of people) {
-        const fresh = !seenRows.has(p.pid);
-        seenRows.add(p.pid);
-        list.append(el("span", { class: "person" + (fresh ? " fresh" : "") }, avatar(p.name), el("span", { text: p.name })));
-      }
-    } else list.append(el("span", { class: "muted", text: "ยังไม่มีผู้เลือก" }));
-    body.append(
-      el(
-        "tr",
-        { class: "choice-row" + (people.length ? "" : " zero") + (people.length && people.length === top ? " lead" : "") },
-        el(
-          "td",
-          { class: "opt-cell" },
-          el("span", { class: "opt-name", text: option }),
-          el("span", { class: "opt-bar", "aria-hidden": "true" }, el("i", { style: `width:${answers.length ? pct : 0}%` })),
-        ),
-        names,
-        el("td", { class: "t count" }, el("b", { text: people.length }), el("small", { text: answers.length ? ` ${pct}%` : "" })),
-      ),
-    );
-  }
+  cloud.update(buildWords(q, answers).words);
 }
 
 async function maybeCluster(q, answers) {
@@ -745,12 +654,9 @@ async function maybeCluster(q, answers) {
     if (items.length) {
       maps.local = { ...maps.local, ...localCluster(items, known) };
       cloud.sig = "";
-      tableSig = "";
+      summarySig = "";
       setTimeout(render, 0);
     }
-    const note = $("#aiNote");
-    note.textContent = "AI ใช้งานไม่ได้ (คีย์ AI ไม่ถูกต้อง) ระบบรวมเฉพาะคำที่สะกดคล้ายกันแทน";
-    note.classList.add("err");
     return;
   }
   const now = Date.now();
@@ -763,7 +669,6 @@ async function maybeCluster(q, answers) {
   try {
     const res = await api("/admin/cluster", { method: "POST", token, body: { questionId: qid } });
     if (maps.qid !== qid) return;
-    const note = $("#aiNote");
     if (res.error) {
       maps.local = res.map;
       // Technical detail goes to the console; the projected screen gets a short line.
@@ -771,21 +676,15 @@ async function maybeCluster(q, answers) {
       if (res.errorCode === "ai_auth") {
         clusterState.aiBroken = true;
         clusterState.backoffUntil = Infinity;
-        note.textContent = "AI ใช้งานไม่ได้ (คีย์ AI ไม่ถูกต้อง) ระบบรวมเฉพาะคำที่สะกดคล้ายกันแทน";
       } else {
         clusterState.backoffUntil = Date.now() + 30000;
-        note.textContent = "AI ขัดข้องชั่วคราว ระบบรวมเฉพาะคำที่สะกดคล้ายกันไปก่อน แล้วจะลองใหม่";
       }
-      note.classList.add("err");
     } else {
       maps.server = { ...maps.server, ...res.map };
       maps.local = {};
-      note.classList.remove("err");
-      if (res.source === "ai") note.textContent = "AI จัดกลุ่มคำที่ความหมายเหมือนกันให้แล้ว คำในกลุ่มเดียวกันจะนับรวมกัน";
-      else if (res.source === "local" && !data.aiAvailable)
-        note.textContent = "ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ระบบจึงรวมเฉพาะคำที่สะกดคล้ายกัน";
       if (res.pending > 0) clusterState.last = 0;
     }
+    summarySig = "";
     render();
   } catch (err) {
     if (err.status === 401) return expired();
@@ -858,10 +757,6 @@ function updateMusic(phase) {
   if (want && !music.playing) {
     if (music.ctx) music.play();
   } else if (!want && music.playing) music.stop();
-  const btn = $("#btnMusic");
-  btn.classList.toggle("on", musicOn);
-  btn.setAttribute("aria-pressed", String(musicOn));
-  btn.textContent = musicOn && want && !music.ready ? "เพลงเบาๆ (แตะเพื่อเปิดเสียง)" : "เพลงเบาๆ";
 }
 
 // ---------- stage controls ----------
@@ -894,84 +789,14 @@ function twoStep(btn, label, confirmLabel, action) {
   });
 }
 const stopGame = async () => {
-  if (document.body.classList.contains("present")) setPresent(false);
-  await control("stop");
   selectTab("settings");
+  await control("stop");
 };
-const clearPlayers = () => control("clear");
 twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
 twoStep($("#btnStopRoom"), "หยุดเกมและปิดห้อง", "แตะอีกครั้งเพื่อยืนยัน", stopGame);
-twoStep($("#btnClearLobby"), "ล้างรายชื่อผู้เข้าร่วม", "แตะอีกครั้งเพื่อล้าง", clearPlayers);
 
-function setToggle(btn, on) {
-  btn.classList.toggle("on", on);
-  btn.setAttribute("aria-pressed", String(on));
-}
-setToggle($("#btnAI"), aiOn);
-$("#btnAI").addEventListener("click", () => {
-  aiOn = !aiOn;
-  storage.set("wc-ai", aiOn);
-  setToggle($("#btnAI"), aiOn);
-  tableSig = "";
-  cloud.sig = "";
-  $("#aiNote").classList.remove("err");
-  $("#aiNote").textContent = aiOn ? "" : "ปิด AI แล้ว ระบบนับเฉพาะคำที่เขียนเหมือนกันทุกตัวอักษร";
-  render();
-});
-$("#btnMusic").addEventListener("click", () => {
-  musicOn = !musicOn;
-  storage.set("wc-music", musicOn);
-  if (musicOn) music.unlock();
-  updateMusic(localPhase());
-});
-
-$("#btnQR").addEventListener("click", () => {
-  $("#qrOverlay").hidden = false;
-  $("#btnCloseQR").focus();
-});
-$("#btnCloseQR").addEventListener("click", () => ($("#qrOverlay").hidden = true));
-$("#qrOverlay").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    $("#qrOverlay").hidden = true;
-    if (document.body.classList.contains("present")) setPresent(false);
-  }
-});
-
-function setPresent(on) {
-  document.body.classList.toggle("present", on);
-  wakeDock();
-  $("#btnPresent").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
-  $("#btnPresentLobby").textContent = on ? "ออกจากเต็มจอ" : "เต็มจอ";
-  try {
-    if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-  } catch {
-    /* optional */
-  }
-  setTimeout(() => cloud.layout(), 300);
-}
-const togglePresent = () => setPresent(!document.body.classList.contains("present"));
-
-// Full screen: the control bar fades after a few seconds without the mouse,
-// and comes back as soon as the mouse moves or the screen is touched.
-let dockTimer = null;
-function wakeDock() {
-  document.body.classList.remove("dock-idle");
-  clearTimeout(dockTimer);
-  dockTimer = setTimeout(() => {
-    if (document.body.classList.contains("present")) document.body.classList.add("dock-idle");
-  }, 3500);
-}
-["mousemove", "pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, wakeDock, { passive: true }));
-$("#btnPresent").addEventListener("click", togglePresent);
-$("#btnPresentLobby").addEventListener("click", togglePresent);
-$("#btnPresentExit").addEventListener("click", () => setPresent(false));
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement && document.body.classList.contains("present")) setPresent(false);
-});
+$("#btnExitStage").addEventListener("click", () => selectTab("settings"));
+$("#btnPresentExit").addEventListener("click", () => selectTab("settings"));
 
 // ================= settings: projects =================
 function setProjects(list) {
@@ -1101,18 +926,19 @@ $("#btnOpenProject").addEventListener("click", async () => {
   const id = selected().id;
   music.unlock();
   // Go full screen right away: browsers only allow it straight after a click.
-  setPresent(true);
+  openingRoom = true;
+  selectTab("stage");
   try {
     await api("/admin/control", { method: "POST", token, body: { action: "open", projectId: id } });
+    launchSig = "";
+    await poll();
   } catch (err) {
-    setPresent(false);
+    selectTab("settings");
     if (err.status === 401) return expired();
     note(err.message, true);
-    return;
+  } finally {
+    openingRoom = false;
   }
-  launchSig = "";
-  await poll();
-  selectTab("stage");
 });
 
 $("#pName").addEventListener("change", () => {

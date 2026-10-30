@@ -211,8 +211,6 @@ textarea { min-height: 110px; resize: vertical; }
 
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .controls .grow { flex: 1; }
-.ai-note { font-size: 0.85rem; color: var(--ink2); }
-.ai-note.err { color: var(--warn); }
 
 .tablewrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
@@ -221,9 +219,6 @@ th { font-weight: 500; color: var(--ink2); font-size: 0.85rem; position: sticky;
 td.t { white-space: nowrap; color: var(--ink2); font-variant-numeric: tabular-nums; }
 td.n { font-weight: 600; white-space: nowrap; }
 td .grp { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 0.85rem; }
-.tablehead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; padding: 14px 14px 4px; }
-.tablehead h2 { font-size: 1.1rem; }
-.tablescroll { max-height: 420px; overflow: auto; }
 
 .ended { padding: 32px; display: grid; gap: 18px; }
 .ended h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); }
@@ -254,14 +249,6 @@ td .grp { display: inline-block; padding: 1px 8px; border-radius: 999px; backgro
 .typepick label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 .saved { font-size: 0.85rem; color: var(--ink2); min-height: 1.4em; }
 
-/* QR overlay */
-.overlay {
-  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-}
-.overlay .card { padding: 28px; display: grid; gap: 14px; justify-items: center; text-align: center; max-width: 520px; width: 100%; }
-.overlay .qr { width: min(100%, 420px); }
 
 /* ---------- player ---------- */
 .phone {
@@ -334,9 +321,8 @@ td .grp { display: inline-block; padding: 1px 8px; border-radius: 999px; backgro
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-/* fullscreen stage: hide chrome */
-body.present .topbar, body.present .hide-present { display: none !important; }
-body.present .cloud { height: calc(100vh - 220px); }
+/* the main screen is always full screen: no top bar */
+body.present .topbar { display: none !important; }
 .join-note { padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 0.95rem; }
 
 /* player welcome (after scanning a project QR) */

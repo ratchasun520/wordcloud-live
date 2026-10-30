@@ -88,9 +88,7 @@
         <div class="card qrbox">
           <h1>สแกนเพื่อร่วมเล่น</h1>
           <div class="qr" id="qrLobby"></div>
-          <div class="joinurl"><span id="joinUrl"></span>
-            <button class="btn ghost small" type="button" id="btnCopy">คัดลอกลิงก์</button>
-          </div>
+          <div class="joinurl"><span id="joinUrl"></span></div>
         </div>
         <div class="card side">
           <div class="side-head">
@@ -104,11 +102,8 @@
             <div class="cloud names-cloud" id="namesCloud" aria-label="รายชื่อผู้เข้าร่วม"></div>
             <ul class="vh" id="playerNames" aria-live="polite"></ul>
           </div>
-          <div class="startrow dock" id="lobbyDock">
+          <div class="startrow">
             <button class="btn big" type="button" id="btnStart">เริ่มคำถาม</button>
-            <span class="grow"></span>
-            <button class="btn ghost" type="button" id="btnPresentLobby">เต็มจอ</button>
-            <button class="btn danger small" type="button" id="btnClearLobby">ล้างรายชื่อผู้เข้าร่วม</button>
           </div>
         </div>
       </div>
@@ -153,25 +148,8 @@
           <button class="btn ghost" type="button" id="btnClose">ปิดรับคำตอบ</button>
           <button class="btn ghost" type="button" id="btnExtend">+15 วินาที</button>
           <button class="btn" type="button" id="btnNext">ข้อถัดไป</button>
-          <span class="grow"></span>
-          <button class="btn ghost on" type="button" id="btnAI" aria-pressed="true">AI จัดกลุ่มคำ</button>
-          <button class="btn ghost on" type="button" id="btnMusic" aria-pressed="true">เพลงเบาๆ</button>
-          <button class="btn ghost" type="button" id="btnQR">แสดง QR</button>
-          <button class="btn ghost" type="button" id="btnPresent">เต็มจอ</button>
+          <button class="btn ghost" type="button" id="btnExitStage">ออกจากเต็มจอ</button>
           <button class="btn danger" type="button" id="btnStop">หยุดเกม</button>
-        </div>
-        <p class="ai-note hide-present" id="aiNote"></p>
-        <div class="card answers-card hide-present" id="answersCard">
-          <div class="tablehead">
-            <h2>คำตอบของผู้เล่น <span class="muted newest">ล่าสุดอยู่บนสุด</span></h2>
-            <span class="muted num" id="answeredCount">ตอบแล้ว 0 จาก 0 คน</span>
-          </div>
-          <div class="tablewrap tablescroll">
-            <table class="answers">
-              <thead id="answersHead"><tr><th>ผู้ตอบ</th><th>คำตอบ</th><th id="thGroup">รวมเข้ากลุ่ม</th><th class="t">เวลา</th></tr></thead>
-              <tbody id="answerRows"></tbody>
-            </table>
-          </div>
         </div>
       </div>
 
@@ -283,15 +261,6 @@
         </div>
       </div>
     </section>
-  </div>
-</div>
-
-<div class="overlay" id="qrOverlay" hidden>
-  <div class="card">
-    <h2>สแกนเพื่อร่วมเล่น</h2>
-    <div class="qr" id="qrBig"></div>
-    <div class="joinurl" id="joinUrl2"></div>
-    <button class="btn" type="button" id="btnCloseQR">ปิด</button>
   </div>
 </div>
 
