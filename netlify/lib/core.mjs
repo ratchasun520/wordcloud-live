@@ -1,5 +1,6 @@
 // Core API for the live word cloud. Storage is injected so the same code runs
-// on Netlify (Netlify Blobs) and in the local dev server (in-memory store).
+// on Netlify (Netlify Blobs), on Vercel (Upstash Redis) and in the local dev
+// server (in-memory store).
 //
 // Store interface used here:
 //   get(key, { type: "json" }) -> object | null
@@ -385,14 +386,30 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     }
   };
 
+  // Stores that can read many keys in one call (Redis MGET) use it; the
+  // others read one key at a time.
+  async function getMany(keys) {
+    if (!keys.length) return [];
+    if (store.getMany) {
+      try {
+        return await store.getMany(keys);
+      } catch {
+        return keys.map(() => null);
+      }
+    }
+    return Promise.all(keys.map((k) => getJSON(k)));
+  }
+
   async function listJSON(prefix) {
     const { blobs } = await store.list({ prefix });
-    const rows = await Promise.all(blobs.map((b) => getJSON(b.key)));
+    const rows = await getMany(blobs.map((b) => b.key));
     return rows.filter(Boolean);
   }
 
   async function deletePrefix(prefix) {
     const { blobs } = await store.list({ prefix });
+    if (!blobs.length) return;
+    if (store.deleteMany) return store.deleteMany(blobs.map((b) => b.key));
     await Promise.all(blobs.map((b) => store.delete(b.key)));
   }
 
@@ -535,10 +552,13 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
     let player = null;
     let answered = null;
     if (validId(pid)) {
-      player = await getJSON(`players/${st.sessionId}/${pid}`);
-      if (player && st.question && view.phase !== "lobby") {
-        const a = await getJSON(`answers/${st.sessionId}/${st.question.id}/${pid}`);
-        answered = a ? a.values : null;
+      const pkey = `players/${st.sessionId}/${pid}`;
+      if (st.question && view.phase !== "lobby") {
+        const [p, a] = await getMany([pkey, `answers/${st.sessionId}/${st.question.id}/${pid}`]);
+        player = p;
+        answered = player && a ? a.values : null;
+      } else {
+        player = await getJSON(pkey);
       }
     }
     return json({ ...view, joined: !!player, name: player ? player.name : null, answered, projectTitle });
@@ -586,7 +606,7 @@ export function createApi({ store, env = {}, fetchImpl = globalThis.fetch }) {
   // ---- admin routes ----
 
   async function login(req) {
-    if (!env.ADMIN_PASSWORD) return fail(500, "ยังไม่ได้ตั้งค่า ADMIN_PASSWORD ใน Netlify");
+    if (!env.ADMIN_PASSWORD) return fail(500, "ยังไม่ได้ตั้งค่า ADMIN_PASSWORD ในหน้าตั้งค่าของเว็บโฮสต์");
     const body = await readBody(req);
     if (!body || !safeEqual(body.password ?? "", env.ADMIN_PASSWORD)) {
       await new Promise((r) => setTimeout(r, 500));
