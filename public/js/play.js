@@ -1,5 +1,4 @@
 import { $, $$, el, api, storage, clock, secondsLeft } from "./common.js";
-import { AmbientMusic } from "./music.js";
 import { pop, stagger, confetti, CHECK_SVG, letterIn, sparkles } from "./fx.js";
 import { WordCloud } from "./cloud.js";
 
@@ -15,13 +14,11 @@ let choice = null;
 let pollTimer = null;
 let sending = false;
 let renaming = false;
-let musicOn = false;
 let sentKey = null;
 let celebratedEnd = false;
 let welcomed = false; // the welcome screen comes first after scanning
 let topic = null;
 let titleLoaded = false;
-const music = new AmbientMusic();
 
 const screens = ["sWelcome", "sJoin", "sWait", "sCount", "sQuestion", "sSent", "sEnded"];
 function show(id) {
@@ -139,7 +136,6 @@ function render() {
     if (saved && saved.name && !$("#name").value) $("#name").value = saved.name;
     $("#joinNote").hidden = phase !== "idle";
     show("sJoin");
-    updateMusic("idle");
     return;
   }
   $("#helloName").textContent = `สวัสดี ${me.name}`;
@@ -151,7 +147,6 @@ function render() {
   $("#waitTitle").textContent = "รอผู้ดูแลเริ่มคำถาม";
   $("#waitNote").textContent = "คำถามจะขึ้นที่หน้านี้อัตโนมัติ ไม่ต้องรีเฟรช";
   const q = st.question;
-  updateMusic(phase);
 
   if (phase === "lobby" || phase === "idle") return show("sWait");
   if (phase === "ended") {
@@ -307,7 +302,6 @@ async function joinAs(name, quiet) {
 
 $("#joinForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (musicOn) music.unlock();
   const name = $("#name").value.trim();
   const err = $("#joinError");
   if (!name) {
@@ -335,7 +329,6 @@ $("#joinForm").addEventListener("submit", async (e) => {
 
 $("#btnWelcome").addEventListener("click", () => {
   welcomed = true;
-  if (musicOn) music.unlock();
   render();
   setTimeout(() => $("#name").focus(), 60);
 });
@@ -389,22 +382,6 @@ $("#answerForm").addEventListener("submit", async (e) => {
     sending = false;
     $("#btnSend").disabled = false;
   }
-});
-
-// ---------- music (off by default on phones, so 30 phones do not play at once) ----------
-function updateMusic(phase) {
-  const want = musicOn && phase === "live";
-  if (want && !music.playing && music.ctx) music.play();
-  else if (!want && music.playing) music.stop();
-}
-$("#btnMusic").addEventListener("click", () => {
-  musicOn = !musicOn;
-  const b = $("#btnMusic");
-  b.classList.toggle("on", musicOn);
-  b.setAttribute("aria-pressed", String(musicOn));
-  b.textContent = musicOn ? "ปิดเพลง" : "เปิดเพลง";
-  if (musicOn) music.unlock();
-  updateMusic(localPhase());
 });
 
 poll();
