@@ -773,13 +773,7 @@ function twoStep(btn, label, confirmLabel, action) {
     }, 4000);
   });
 }
-const stopGame = async () => {
-  selectTab("settings");
-  await control("stop");
-};
-twoStep($("#btnStop"), "หยุดเกม", "แตะอีกครั้ง: หยุดและล้างข้อมูล", stopGame);
 
-$("#btnExitStage").addEventListener("click", () => selectTab("settings"));
 $("#btnPresentExit").addEventListener("click", () => selectTab("settings"));
 
 // ================= settings: projects =================
