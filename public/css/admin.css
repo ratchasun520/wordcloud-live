@@ -364,7 +364,8 @@ body.present .dock {
   transition: opacity 0.45s var(--ease-out), transform 0.45s var(--ease-out);
   animation: dockIn 0.6s var(--ease-spring) both;
 }
-body.present .dock .grow, body.present #btnClearLobby, body.present #btnAI { display: none; }
+body.present .dock .grow, body.present #btnClearLobby, body.present #btnAI,
+body.present #btnMusic, body.present #btnQR { display: none; }
 body.present .dock .btn { white-space: nowrap; border-radius: 999px; padding: 10px 18px; font-size: 1rem; }
 body.present .dock .btn.big { padding: 10px 26px; }
 body.present .dock #btnPresent, body.present .dock #btnPresentLobby { order: 9; }
